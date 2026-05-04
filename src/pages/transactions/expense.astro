@@ -1,0 +1,91 @@
+---
+import AppLayout from '@/layouts/AppLayout.astro';
+import { db } from '@/db';
+import { transactions, vehicles, userVehicles } from '@/db/schema';
+import { nanoid } from 'nanoid';
+import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+
+const user = Astro.locals.user;
+
+if (!user) return Astro.redirect('/');
+
+const schema = z.object({
+  vehicleId: z.string().min(1),
+  amount: z.coerce.number().positive(),
+  description: z.string().min(1).max(120),
+  date: z.string(),
+});
+
+const userVehiclesList = await db
+  .select({ id: vehicles.id, plate: vehicles.plate })
+  .from(userVehicles)
+  .innerJoin(vehicles, eq(userVehicles.vehicleId, vehicles.id))
+  .where(eq(userVehicles.userId, user.id));
+
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+
+  const parsed = schema.safeParse({
+    vehicleId: form.get('vehicleId'),
+    amount: form.get('amount'),
+    description: form.get('description'),
+    date: form.get('date'),
+  });
+
+  if (!parsed.success) {
+    error = 'Datos inválidos';
+  } else {
+    await db.insert(transactions).values({
+      id: nanoid(),
+      vehicleId: parsed.data.vehicleId,
+      amount: parsed.data.amount,
+      description: parsed.data.description,
+      type: 'expense',
+      date: new Date(parsed.data.date),
+      createdBy: user.id,
+      updatedBy: user.id,
+    });
+
+    return Astro.redirect('/dashboard');
+  }
+}
+---
+
+<AppLayout title="Nuevo Gasto">
+  <section class="page">
+    <h1>Nuevo gasto</h1>
+
+    {error && <div class="error-msg">{error}</div>}
+
+    <form method="POST" class="card form">
+      <div class="form-group">
+        <label>Vehículo</label>
+        <select name="vehicleId" class="input" required>
+          <option value="">Seleccionar</option>
+          {userVehiclesList.map(v => (
+            <option value={v.id}>{v.plate}</option>
+          ))}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Monto</label>
+        <input name="amount" type="number" step="0.01" class="input" />
+      </div>
+      <div class="form-group">
+        <label>Descripción</label>
+        <input name="description" class="input" />
+      </div>
+
+      <div class="form-group">
+        <label>Fecha</label>
+        <input name="date" type="date" class="input" />
+      </div>
+
+      <button class="btn-primary">Guardar Gasto</button>
+    </form>
+  </section>
+</AppLayout>

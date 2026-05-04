@@ -9,9 +9,23 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "db:generate": "drizzle-kit generate --config=src/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=src/drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config=src/drizzle.config.ts"
   },
   "dependencies": {
-    "astro": "^6.2.1"
+    "@astrojs/node": "^10.0.6",
+    "@libsql/client": "^0.17.3",
+    "@tailwindcss/vite": "^4.2.4",
+    "astro": "^6.2.1",
+    "better-auth": "^1.6.9",
+    "drizzle-orm": "^0.45.2",
+    "nanoid": "^5.1.11",
+    "tailwindcss": "^4.2.4",
+    "zod": "^4.4.2"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10"
   }
 }

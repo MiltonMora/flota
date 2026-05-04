@@ -1,0 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=DM+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Colores */
+  --color-navy:           #1C3F6E;
+  --color-navy-mid:       #2A5FA5;
+  --color-navy-light:     #E6F1FB;
+  --color-amber-accent:   #F5A623;
+  --color-amber-light:    #FAEEDA;
+  --color-carbon:         #2D2D2D;
+  --color-asphalt:        #F5F4F0;
+  --color-income:         #3B6D11;
+  --color-income-light:   #EAF3DE;
+  --color-expense:        #A32D2D;
+  --color-expense-light:  #FCEBEB;
+
+  /* Tipografía */
+  --font-display: "Barlow Condensed", sans-serif;
+  --font-sans:    "Barlow", sans-serif;
+  --font-mono:    "DM Mono", monospace;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--color-asphalt);
+    color: var(--color-carbon);
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .btn-primary {
+    background-color: var(--color-navy);
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    transition: background-color 0.15s;
+  }
+  .btn-primary:hover { background-color: var(--color-navy-mid); }
+
+  .btn-secondary {
+    background-color: transparent;
+    color: var(--color-navy);
+    border: 1.5px solid var(--color-navy);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    transition: background-color 0.15s;
+  }
+  .btn-secondary:hover { background-color: var(--color-navy-light); }
+
+  .btn-danger {
+    background-color: var(--color-expense);
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    transition: opacity 0.15s;
+  }
+  .btn-danger:hover { opacity: 0.9; }
+
+  .card {
+    background-color: white;
+    border: 0.5px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 1rem;
+  }
+
+  .badge-income {
+    background-color: var(--color-income-light);
+    color: var(--color-income);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+
+  .badge-expense {
+    background-color: var(--color-expense-light);
+    color: var(--color-expense);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+
+  .badge-plate {
+    background-color: var(--color-asphalt);
+    color: var(--color-carbon);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid #d1d5db;
+    letter-spacing: 0.08em;
+  }
+
+  .input {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    background-color: white;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+  }
+  .input:focus {
+    border-color: var(--color-navy-mid);
+    box-shadow: 0 0 0 2px var(--color-navy-light);
+  }
+
+  .data-positive {
+    font-family: var(--font-mono);
+    color: var(--color-income);
+    font-weight: 500;
+  }
+
+  .data-negative {
+    font-family: var(--font-mono);
+    color: var(--color-expense);
+    font-weight: 500;
+  }
+}

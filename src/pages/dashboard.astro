@@ -1,0 +1,362 @@
+---
+import AppLayout from '@/layouts/AppLayout.astro';
+import { db } from '@/db';
+import { vehicles, transactions, userVehicles } from '@/db/schema';
+import { eq, desc, sql, and } from 'drizzle-orm';
+
+const user = Astro.locals.user;
+
+if (!user) {
+  return Astro.redirect('/');
+}
+
+// Vehículos asociados al usuario
+const userVehicleList = await db
+  .select({
+    id: vehicles.id,
+    plate: vehicles.plate,
+    brand: vehicles.brand,
+    model: vehicles.model,
+    year: vehicles.year,
+  })
+  .from(userVehicles)
+  .innerJoin(vehicles, eq(userVehicles.vehicleId, vehicles.id))
+  .where(eq(userVehicles.userId, user.id));
+
+const vehicleIds = userVehicleList.map((v) => v.id);
+
+let incomeTotal = 0;
+let expenseTotal = 0;
+let recentTransactions: any[] = [];
+
+if (vehicleIds.length > 0) {
+  const totals = await db
+    .select({
+      income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.amount} ELSE 0 END), 0)`,
+      expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`,
+    })
+    .from(transactions)
+    .where(sql`${transactions.vehicleId} IN (${sql.join(vehicleIds.map((id) => sql`${id}`), sql`, `)})`);
+
+  incomeTotal = totals[0]?.income ?? 0;
+  expenseTotal = totals[0]?.expense ?? 0;
+
+  recentTransactions = await db
+    .select({
+      id: transactions.id,
+      amount: transactions.amount,
+      type: transactions.type,
+      description: transactions.description,
+      date: transactions.date,
+      plate: vehicles.plate,
+    })
+    .from(transactions)
+    .innerJoin(vehicles, eq(transactions.vehicleId, vehicles.id))
+    .where(sql`${transactions.vehicleId} IN (${sql.join(vehicleIds.map((id) => sql`${id}`), sql`, `)})`)
+    .orderBy(desc(transactions.date))
+    .limit(8);
+}
+
+const balance = incomeTotal - expenseTotal;
+
+const currency = (value: number) =>
+  new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 2,
+  }).format(value);
+
+const formatDate = (date: Date | number) =>
+  new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(date));
+---
+
+<AppLayout title="Dashboard | Flota Vial">
+  <section class="dashboard-page">
+    <header class="dashboard-header">
+      <div>
+        <p class="dashboard-greeting">Hola, {user.name?.split(' ')[0] ?? 'Usuario'}</p>
+        <h1 class="dashboard-title">Resumen general</h1>
+      </div>
+
+      {user.image && (
+        <img
+          src={user.image}
+          alt="Perfil"
+          class="profile-avatar"
+          loading="lazy"
+        />
+      )}
+    </header>
+
+    <section class="balance-card">
+      <p class="balance-label">Balance total</p>
+      <h2 class={`balance-value ${balance >= 0 ? 'positive' : 'negative'}`}>
+        {currency(balance)}
+      </h2>
+
+      <div class="balance-breakdown">
+        <div>
+          <span class="badge-income">Ingresos</span>
+          <p class="data-positive">{currency(incomeTotal)}</p>
+        </div>
+
+        <div>
+          <span class="badge-expense">Gastos</span>
+          <p class="data-negative">{currency(expenseTotal)}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="quick-actions">
+      <a href="/vehicles/new" class="btn-secondary quick-btn">+ Vehículo</a>
+      <a href="/transactions/income" class="btn-primary quick-btn">+ Ingreso</a>
+      <a href="/transactions/expense" class="btn-danger quick-btn">+ Gasto</a>
+    </section>
+
+    <section class="section-block">
+      <div class="section-heading">
+        <h3>Tus vehículos</h3>
+      </div>
+
+      <div class="vehicle-list">
+        {
+          userVehicleList.length === 0 ? (
+            <div class="card empty-card">
+              <p>No tienes vehículos asociados.</p>
+            </div>
+          ) : (
+            userVehicleList.map((vehicle) => (
+              <a href={`/vehicles/edit/${vehicle.id}`} class="card vehicle-card">
+                <div>
+                  <span class="badge-plate">{vehicle.plate}</span>
+                  <p class="vehicle-name">
+                    {vehicle.brand} {vehicle.model}
+                  </p>
+                  <p class="vehicle-year">{vehicle.year}</p>
+                </div>
+              </a>
+            ))
+          )
+        }
+      </div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-heading">
+        <h3>Movimientos recientes</h3>
+      </div>
+
+      <div class="transactions-list">
+        {
+          recentTransactions.length === 0 ? (
+            <div class="card empty-card">
+              <p>No hay movimientos registrados.</p>
+            </div>
+          ) : (
+            recentTransactions.map((tx) => (
+              <a
+                href={`/transactions/${tx.type}/edit/${tx.id}`}
+                class="card transaction-card"
+              >
+                <div class="transaction-main">
+                  <div>
+                    <p class="transaction-desc">{tx.description}</p>
+                    <div class="transaction-meta">
+                      <span class="badge-plate">{tx.plate}</span>
+                      <span>{formatDate(tx.date)}</span>
+                    </div>
+                  </div>
+
+                  <p class={tx.type === 'income' ? 'data-positive' : 'data-negative'}>
+                    {tx.type === 'income' ? '+' : '-'}{currency(tx.amount)}
+                  </p>
+                </div>
+              </a>
+            ))
+          )
+        }
+      </div>
+    </section>
+  </section>
+</AppLayout>
+
+<style>
+  .dashboard-page {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    background:
+      linear-gradient(to bottom, var(--color-navy-light) 0%, var(--color-asphalt) 28%, var(--color-asphalt) 100%);
+    min-height: 100%;
+  }
+
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 0.25rem;
+  }
+
+  .dashboard-greeting {
+    font-size: 13px;
+    color: var(--color-navy-mid);
+    font-family: var(--font-mono);
+  }
+
+  .dashboard-title {
+    font-size: 2rem;
+    color: var(--color-navy);
+    line-height: 1;
+  }
+
+  .profile-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 9999px;
+    object-fit: cover;
+    border: 3px solid var(--color-amber-accent);
+    box-shadow: 0 4px 12px rgba(28, 63, 110, 0.18);
+  }
+
+  .balance-card {
+    background:
+      linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-mid) 70%, var(--color-amber-accent) 140%);
+    border-radius: 16px;
+    padding: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    box-shadow: 0 10px 24px rgba(28, 63, 110, 0.22);
+  }
+
+  .balance-label {
+    font-size: 12px;
+    opacity: 0.8;
+    font-family: var(--font-mono);
+  }
+
+  .balance-value {
+    font-size: 2rem;
+    font-family: var(--font-display);
+  }
+
+  .balance-breakdown {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .positive {
+    color: green;
+  }
+
+
+  .negative {
+    color: red;
+  }
+
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    background: white;
+    padding: 0.9rem;
+    border-radius: 14px;
+    border: 1px solid #e8edf3;
+    box-shadow: 0 4px 10px rgba(28, 63, 110, 0.05);
+  }
+
+  .quick-btn {
+    text-align: center;
+    padding-inline: 0.5rem;
+  }
+
+  .section-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(230, 241, 251, 0.9);
+    padding: 1rem;
+    border-radius: 16px;
+    backdrop-filter: blur(6px);
+  }
+
+  .section-heading h3 {
+    font-size: 1.35rem;
+    color: var(--color-navy);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .vehicle-list,
+  .transactions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .vehicle-card,
+  .transaction-card {
+    text-decoration: none;
+    color: inherit;
+    background: white;
+    border: 1px solid #eef2f6;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .vehicle-card:hover,
+  .transaction-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(28, 63, 110, 0.08);
+  }
+
+  .vehicle-name {
+    margin-top: 0.5rem;
+    font-weight: 600;
+    color: var(--color-carbon);
+    font-size: 15px;
+  }
+
+  .vehicle-year {
+    font-size: 12px;
+    color: #888780;
+    margin-top: 2px;
+  }
+
+  .transaction-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .transaction-desc {
+    font-weight: 600;
+    color: var(--color-carbon);
+  }
+
+  .transaction-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #888780;
+    align-items: center;
+  }
+
+  .empty-card {
+    text-align: center;
+    color: #888780;
+    background: linear-gradient(135deg, #ffffff, var(--color-navy-light));
+    border: 1px dashed #c9d8ea;
+  }
+</style>

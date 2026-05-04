@@ -1,0 +1,249 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { auth } from '@/lib/auth';
+
+const session = await auth.api.getSession({ headers: Astro.request.headers });
+if (session?.user) return Astro.redirect('/dashboard');
+
+const error = Astro.url.searchParams.get('error');
+---
+
+<Layout title="Flota Vial">
+  <main>
+
+    <div class="logo-area">
+      <div class="logo-mark">
+        <div class="logo-mark-inner"></div>
+      </div>
+      <h1 class="logo-name">FLOTA VIAL</h1>
+      <p class="logo-tag">control vehicular</p>
+    </div>
+
+    <div class="bottom-area">
+
+      {error === 'inactive' && (
+        <div class="error-msg">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="7" stroke="#A32D2D" stroke-width="1.2"/>
+            <path d="M8 5v4M8 10.5v.5" stroke="#A32D2D" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          Tu cuenta no está habilitada. Contactá al administrador.
+        </div>
+      )}
+
+      <div class="welcome-text">
+        <p class="welcome">Bienvenido</p>
+        <p class="welcome-sub">
+          Accedé con tu cuenta de Google autorizada por el administrador.
+        </p>
+      </div>
+
+      <button id="google-btn" class="google-btn">
+        <span id="btn-content" class="btn-content">
+          <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+            <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+          </svg>
+          Continuar con Google
+        </span>
+        <span id="btn-loader" class="btn-loader" style="display:none;">
+          <svg class="spinner" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Conectando...
+        </span>
+      </button>
+
+      <p class="footer-note">acceso restringido · solo usuarios autorizados</p>
+
+    </div>
+  </main>
+</Layout>
+
+<style>
+  main {
+    min-height: 100dvh;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    padding: 0 1.75rem;
+    max-width: 480px;
+    margin: 0 auto;
+    justify-self: center;
+    align-items: center;
+  }
+
+  .logo-area {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-top: 4rem;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .logo-mark {
+    width: 44px;
+    height: 44px;
+    background-color: var(--color-navy);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+
+  .logo-mark-inner {
+    width: 20px;
+    height: 13px;
+    border: 2.5px solid var(--color-amber-accent);
+    border-radius: 2px;
+  }
+
+  .logo-name {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--color-navy);
+    letter-spacing: 0.03em;
+    line-height: 1;
+  }
+
+  .logo-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #888780;
+    letter-spacing: 0.08em;
+  }
+
+  .bottom-area {
+    padding-top: 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 2.5rem;
+  }
+
+  .error-msg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--color-expense-light);
+    color: var(--color-expense);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    line-height: 1.5;
+  }
+
+  .welcome {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 600;
+    color: #2D2D2D;
+    margin-bottom: 4px;
+  }
+
+  .welcome-sub {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: #888780;
+    line-height: 1.6;
+  }
+
+  .google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px;
+    background-color: var(--color-navy);
+    color: white;
+    border-radius: 10px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.15s;
+  }
+  .google-btn:hover { background-color: var(--color-navy-mid); }
+
+  .footer-note {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: #B4B2A9;
+    text-align: center;
+    letter-spacing: 0.05em;
+    line-height: 1.6;
+  }
+
+  .btn-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .btn-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .spinner {
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  .google-btn:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+  }
+</style>
+
+<script>
+  const btn     = document.getElementById('google-btn');
+  const content = document.getElementById('btn-content');
+  const loader  = document.getElementById('btn-loader');
+
+  btn?.addEventListener('click', async () => {
+    // Mostrar loader
+    content!.style.display = 'none';
+    loader!.style.display  = 'flex';
+    btn.setAttribute('disabled', 'true');
+
+    try {
+      const res = await fetch('/api/auth/sign-in/social', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider:    'google',
+          callbackURL: '/dashboard',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.redirect && data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('No redirect URL');
+      }
+    } catch (e) {
+      // Restaurar botón si algo falla
+      content!.style.display = 'flex';
+      loader!.style.display  = 'none';
+      btn.removeAttribute('disabled');
+    }
+  });
+</script>
