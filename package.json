@@ -28,7 +28,7 @@
     "zod": "^4.4.2"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.18.1"
+    "drizzle-kit": "^0.31.10"
   },
   "overrides": {
     "vite": "^7"
