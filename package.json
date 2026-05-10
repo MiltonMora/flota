@@ -16,8 +16,7 @@
     "generate-types": "wrangler types"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^13.5.0",
-    "@astrojs/node": "^10.0.6",
+    "@astrojs/node": "^10.1.0",
     "@libsql/client": "^0.17.3",
     "@tailwindcss/vite": "^4.2.4",
     "astro": "^6.2.1",
@@ -29,7 +28,7 @@
     "zod": "^4.4.2"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.18.1"
   },
   "overrides": {
     "vite": "^7"
