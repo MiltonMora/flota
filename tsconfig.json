@@ -3,7 +3,12 @@
   "compilerOptions": {
     "baseUrl": "src",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
-  }
+  },
+  "include": [
+    "./worker-configuration.d.ts"
+  ]
 }
