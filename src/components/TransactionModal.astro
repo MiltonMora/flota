@@ -1,0 +1,463 @@
+---
+interface Props {
+  vehicles: { id: string; plate: string; brand: string; model: string }[];
+}
+const { vehicles } = Astro.props;
+---
+
+<div id="tx-modal-overlay" class="overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+
+    <div class="modal-handle"></div>
+
+    <div class="modal-header">
+      <div>
+        <h2 id="tx-modal-title" class="modal-title">Nuevo ingreso</h2>
+        <p id="tx-modal-subtitle" class="modal-subtitle">registrá un cobro o entrada</p>
+      </div>
+      <button id="tx-modal-close" class="modal-close" aria-label="Cerrar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="tx-modal-error" class="modal-error" style="display:none;"></div>
+
+    <!-- Importe destacado -->
+    <div class="amount-area">
+      <p class="amount-label">Importe</p>
+      <div class="amount-wrap">
+        <span class="currency-sym">$</span>
+        <input id="tx-amount" type="number" min="0.01" step="0.01"
+          class="amount-input" placeholder="0,00" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <div class="field">
+        <label for="tx-description">Descripción</label>
+        <input id="tx-description" type="text" maxlength="200"
+          class="field-input" placeholder="Ej: Flete zona norte" />
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="tx-vehicle">Vehículo</label>
+          <select id="tx-vehicle" class="field-input">
+            <option value="">Seleccioná...</option>
+            {vehicles.map((v) => (
+              <option value={v.id}>{v.plate} — {v.brand} {v.model}</option>
+            ))}
+          </select>
+        </div>
+        <div class="field">
+          <label for="tx-date">Fecha</label>
+          <input id="tx-date" type="date" class="field-input" />
+        </div>
+      </div>
+
+      <div class="field no-border">
+        <label for="tx-notes">
+          Notas <span class="optional">· opcional</span>
+        </label>
+        <input id="tx-notes" type="text" maxlength="300"
+          class="field-input" placeholder="Referencia, cliente, proveedor..." />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="tx-modal-cancel" class="btn-cancel">Cancelar</button>
+      <button id="tx-modal-submit" class="btn-save">
+        <span id="tx-submit-text">Guardar ingreso</span>
+        <span id="tx-submit-loader" style="display:none; align-items:center; gap:6px;">
+          <svg class="spinner" width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Guardando...
+        </span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  /* ── Overlay ── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    background: rgba(30, 80, 30, 0.3);
+  }
+  .overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .overlay.expense {
+    background: rgba(80, 20, 20, 0.3);
+  }
+
+  /* ── Modal ── */
+  .modal {
+    background: white;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .overlay.open .modal { transform: translateY(0); }
+
+  .modal-handle {
+    width: 32px;
+    height: 3px;
+    border-radius: 99px;
+    margin: 14px auto 0;
+    background: #C0DD97;
+    transition: background 0.2s;
+  }
+  .overlay.expense .modal-handle { background: #F7C1C1; }
+
+  /* ── Header ── */
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 16px 18px 0;
+  }
+
+  .modal-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-income);
+    transition: color 0.2s;
+  }
+  .overlay.expense .modal-title { color: var(--color-expense); }
+
+  .modal-subtitle {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: #B4B2A9;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
+  }
+
+  .modal-close {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--color-income-light);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-income);
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: background 0.2s, color 0.2s;
+  }
+  .overlay.expense .modal-close {
+    background: var(--color-expense-light);
+    color: var(--color-expense);
+  }
+
+  /* ── Error ── */
+  .modal-error {
+    margin: 10px 18px 0;
+    background: var(--color-expense-light);
+    color: var(--color-expense);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    line-height: 1.5;
+  }
+
+  /* ── Importe ── */
+  .amount-area {
+    padding: 14px 18px;
+    border-bottom: 0.5px solid #f3f3f3;
+  }
+
+  .amount-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: #B4B2A9;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .amount-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .currency-sym {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--color-income);
+    transition: color 0.2s;
+  }
+  .overlay.expense .currency-sym { color: var(--color-expense); }
+
+  .amount-input {
+    font-family: var(--font-mono);
+    font-size: 32px;
+    font-weight: 500;
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    color: var(--color-income);
+    transition: color 0.2s;
+  }
+  .overlay.expense .amount-input { color: var(--color-expense); }
+  .amount-input::placeholder { color: #e5e7eb; }
+
+  /* ── Campos ── */
+  .modal-body {
+    padding: 4px 18px 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .field {
+    padding: 11px 0;
+    border-bottom: 0.5px solid #f3f3f3;
+  }
+  .field.no-border { border-bottom: none; }
+
+  .field label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: #B4B2A9;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  .optional {
+    color: #d1d5db;
+    font-size: 9px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .field-input {
+    border: none;
+    outline: none;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    color: var(--color-carbon);
+    background: transparent;
+    width: 100%;
+    padding: 0;
+    appearance: none;
+  }
+  .field-input::placeholder { color: #d1d5db; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 0.5px solid #f3f3f3;
+  }
+  .grid-2 .field {
+    border-bottom: none;
+    padding: 11px 0;
+  }
+  .grid-2 .field:first-child {
+    border-right: 0.5px solid #f3f3f3;
+    padding-right: 14px;
+  }
+  .grid-2 .field:last-child { padding-left: 14px; }
+
+  /* ── Acciones ── */
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 14px 18px 0;
+  }
+
+  .btn-cancel {
+    padding: 13px;
+    border-radius: 12px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    background: #F5F4F0;
+    color: #888780;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-cancel:hover { background: #e5e7eb; }
+
+  .btn-save {
+    padding: 13px;
+    border-radius: 12px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--color-income);
+    transition: background 0.2s;
+  }
+  .overlay.expense .btn-save { background: var(--color-expense); }
+  .btn-save:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  .spinner {
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+</style>
+
+<script>
+  type TxType = 'income' | 'expense';
+
+  const overlay  = document.getElementById('tx-modal-overlay')!;
+  const title    = document.getElementById('tx-modal-title')!;
+  const subtitle = document.getElementById('tx-modal-subtitle')!;
+  const errorBox = document.getElementById('tx-modal-error')!;
+  const btnClose  = document.getElementById('tx-modal-close')!;
+  const btnCancel = document.getElementById('tx-modal-cancel')!;
+  const btnSubmit = document.getElementById('tx-modal-submit') as HTMLButtonElement;
+  const submitText   = document.getElementById('tx-submit-text')!;
+  const submitLoader = document.getElementById('tx-submit-loader')!;
+
+  const fields = {
+    amount:      document.getElementById('tx-amount')       as HTMLInputElement,
+    description: document.getElementById('tx-description')  as HTMLInputElement,
+    vehicle:     document.getElementById('tx-vehicle')      as HTMLSelectElement,
+    date:        document.getElementById('tx-date')         as HTMLInputElement,
+    notes:       document.getElementById('tx-notes')        as HTMLInputElement,
+  };
+
+  let currentType: TxType = 'income';
+
+  const config = {
+    income: {
+      title:    'Nuevo ingreso',
+      subtitle: 'registrá un cobro o entrada',
+      btn:      'Guardar ingreso',
+    },
+    expense: {
+      title:    'Nuevo gasto',
+      subtitle: 'registrá un pago o salida',
+      btn:      'Guardar gasto',
+    },
+  };
+
+  // Escuchar eventos externos para abrir
+  document.addEventListener('open-tx-modal', (e: Event) => {
+    const type = (e as CustomEvent<{ type: TxType }>).detail?.type ?? 'income';
+    openModal(type);
+  });
+
+  function openModal(type: TxType) {
+    currentType = type;
+    applyTheme(type);
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    // Fecha por defecto: hoy
+    fields.date.value = new Date().toISOString().split('T')[0];
+    fields.amount.focus();
+  }
+
+  function applyTheme(type: TxType) {
+    const c = config[type];
+    title.textContent    = c.title;
+    subtitle.textContent = c.subtitle;
+    submitText.textContent = c.btn;
+    overlay.classList.toggle('expense', type === 'expense');
+  }
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    resetForm();
+  }
+
+  function resetForm() {
+    Object.values(fields).forEach((el) => (el.value = ''));
+    showError('');
+  }
+
+  function showError(msg: string) {
+    errorBox.textContent   = msg;
+    errorBox.style.display = msg ? 'block' : 'none';
+  }
+
+  function setLoading(on: boolean) {
+    btnSubmit.disabled           = on;
+    submitText.style.display     = on ? 'none'  : 'inline';
+    submitLoader.style.display   = on ? 'flex'  : 'none';
+  }
+
+  btnClose.addEventListener('click', closeModal);
+  btnCancel.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+  btnSubmit.addEventListener('click', async () => {
+    showError('');
+
+    const data = {
+      type:        currentType,
+      amount:      fields.amount.value,
+      description: fields.description.value.trim(),
+      vehicleId:   fields.vehicle.value,
+      date:        fields.date.value,
+      notes:       fields.notes.value.trim(),
+    };
+
+    if (!data.amount || !data.description || !data.vehicleId || !data.date) {
+      showError('Completá los campos obligatorios.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/transactions/create', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(data),
+      });
+
+      const json = await res.json();
+      if (!res.ok) { showError(json.error ?? 'Error al guardar.'); return; }
+
+      closeModal();
+      window.location.reload();
+    } catch {
+      showError('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  });
+</script>

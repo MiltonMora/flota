@@ -1,0 +1,257 @@
+---
+---
+<div id="vehicle-edit-overlay" class="overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title">Editar vehículo</h2>
+        <p class="modal-subtitle">modificá los datos de la unidad</p>
+      </div>
+      <button id="vedit-close" class="modal-close" aria-label="Cerrar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="vedit-error" class="modal-error" style="display:none;"></div>
+
+    <div class="modal-body">
+      <input type="hidden" id="vedit-id" />
+
+      <div class="field">
+        <label for="vedit-plate">Matrícula</label>
+        <input id="vedit-plate" type="text" maxlength="12" class="field-input plate-input" autocomplete="off" />
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="vedit-brand">Marca</label>
+          <input id="vedit-brand" type="text" class="field-input" />
+        </div>
+        <div class="field">
+          <label for="vedit-model">Modelo</label>
+          <input id="vedit-model" type="text" class="field-input" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="vedit-year">Año</label>
+        <input id="vedit-year" type="number" class="field-input" min="1900" max={new Date().getFullYear() + 1} />
+      </div>
+
+      <div class="field no-border">
+        <label for="vedit-description">Notas <span class="optional">· opcional</span></label>
+        <input id="vedit-description" type="text" maxlength="300" class="field-input" />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="vedit-delete" class="btn-delete">Eliminar</button>
+      <button id="vedit-submit" class="btn-save">
+        <span id="vedit-text">Guardar</span>
+        <span id="vedit-loader" style="display:none; align-items:center; gap:6px;">
+          <svg class="spinner" width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Guardando...
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(20, 40, 80, 0.35);
+    display: flex; align-items: flex-end;
+    z-index: 200;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: white; width: 100%; max-width: 480px;
+    margin: 0 auto;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .overlay.open .modal { transform: translateY(0); }
+
+  .modal-handle { width: 32px; height: 3px; background: #B8D0EE; border-radius: 99px; margin: 14px auto 0; }
+
+  .modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 18px 0; }
+
+  .modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-navy); line-height: 1; }
+  .modal-subtitle { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.06em; margin-top: 4px; }
+
+  .modal-close {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--color-navy-light); border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--color-navy);
+    flex-shrink: 0; margin-top: 2px;
+    transition: background 0.15s;
+  }
+  .modal-close:hover { background: #cce0f5; }
+
+  .modal-error {
+    margin: 10px 18px 0;
+    background: var(--color-expense-light); color: var(--color-expense);
+    font-family: var(--font-sans); font-size: 12px;
+    padding: 10px 12px; border-radius: 8px; line-height: 1.5;
+  }
+
+  .modal-body { padding: 4px 18px 0; display: flex; flex-direction: column; }
+
+  .field { padding: 13px 0; border-bottom: 0.5px solid #f3f3f3; }
+  .field.no-border { border-bottom: none; }
+
+  .field label {
+    font-family: var(--font-mono); font-size: 9px; color: #B4B2A9;
+    letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 5px;
+  }
+  .optional { color: #d1d5db; font-size: 9px; text-transform: none; letter-spacing: 0; }
+
+  .field-input {
+    border: none; outline: none;
+    font-family: var(--font-sans); font-size: 15px;
+    color: var(--color-carbon); background: transparent; width: 100%; padding: 0;
+  }
+  .field-input::placeholder { color: #d1d5db; }
+
+  .plate-input { font-family: var(--font-mono); font-size: 16px; letter-spacing: 0.12em; font-weight: 500; text-transform: uppercase; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 0.5px solid #f3f3f3; }
+  .grid-2 .field { border-bottom: none; padding: 13px 0; }
+  .grid-2 .field:first-child { border-right: 0.5px solid #f3f3f3; padding-right: 16px; }
+  .grid-2 .field:last-child { padding-left: 16px; }
+
+  .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 18px 0; }
+
+  .btn-delete {
+    padding: 13px; border-radius: 12px;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    background: var(--color-expense-light); color: var(--color-expense);
+    border: none; cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-delete:hover { opacity: 0.8; }
+
+  .btn-save {
+    padding: 13px; border-radius: 12px;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    background: var(--color-navy); color: white;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: background 0.15s;
+  }
+  .btn-save:hover { background: var(--color-navy-mid); }
+  .btn-save:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  .spinner { animation: spin 0.8s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+<script>
+  const overlay  = document.getElementById('vehicle-edit-overlay')!;
+  const btnClose  = document.getElementById('vedit-close')!;
+  const btnDelete = document.getElementById('vedit-delete') as HTMLButtonElement;
+  const btnSubmit = document.getElementById('vedit-submit') as HTMLButtonElement;
+  const errorBox  = document.getElementById('vedit-error')!;
+  const submitText   = document.getElementById('vedit-text')!;
+  const submitLoader = document.getElementById('vedit-loader')!;
+
+  const fields = {
+    id:          document.getElementById('vedit-id')          as HTMLInputElement,
+    plate:       document.getElementById('vedit-plate')       as HTMLInputElement,
+    brand:       document.getElementById('vedit-brand')       as HTMLInputElement,
+    model:       document.getElementById('vedit-model')       as HTMLInputElement,
+    year:        document.getElementById('vedit-year')        as HTMLInputElement,
+    description: document.getElementById('vedit-description') as HTMLInputElement,
+  };
+
+  document.addEventListener('open-vehicle-edit', (e: Event) => {
+    const data = (e as CustomEvent).detail;
+    fields.id.value          = data.id;
+    fields.plate.value       = data.plate;
+    fields.brand.value       = data.brand;
+    fields.model.value       = data.model;
+    fields.year.value        = data.year;
+    fields.description.value = data.description ?? '';
+    showError('');
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  });
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  function showError(msg: string) {
+    errorBox.textContent   = msg;
+    errorBox.style.display = msg ? 'block' : 'none';
+  }
+
+  function setLoading(on: boolean) {
+    btnSubmit.disabled           = on;
+    submitText.style.display     = on ? 'none'  : 'inline';
+    submitLoader.style.display   = on ? 'flex'  : 'none';
+  }
+
+  btnClose.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+  btnDelete.addEventListener('click', async () => {
+    if (!confirm('¿Eliminar este vehículo? Se borrarán todas sus transacciones.')) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/vehicles/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: fields.id.value }),
+      });
+      if (!res.ok) { showError('Error al eliminar.'); return; }
+      closeModal();
+      window.location.reload();
+    } catch { showError('Error de conexión.'); }
+    finally { setLoading(false); }
+  });
+
+  btnSubmit.addEventListener('click', async () => {
+    showError('');
+    const data = {
+      id:          fields.id.value,
+      plate:       fields.plate.value.trim(),
+      brand:       fields.brand.value.trim(),
+      model:       fields.model.value.trim(),
+      year:        fields.year.value,
+      description: fields.description.value.trim(),
+    };
+    if (!data.plate || !data.brand || !data.model || !data.year) {
+      showError('Completá los campos obligatorios.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/vehicles/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) { showError(json.error ?? 'Error al guardar.'); return; }
+      closeModal();
+      window.location.reload();
+    } catch { showError('Error de conexión.'); }
+    finally { setLoading(false); }
+  });
+</script>

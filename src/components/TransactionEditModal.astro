@@ -1,0 +1,283 @@
+<div id="txedit-overlay" class="overlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+
+    <div class="modal-header">
+      <div>
+        <h2 id="txedit-title" class="modal-title">Editar ingreso</h2>
+        <p id="txedit-subtitle" class="modal-subtitle">modificá los datos del cobro</p>
+      </div>
+      <button id="txedit-close" class="modal-close" aria-label="Cerrar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="txedit-error" class="modal-error" style="display:none;"></div>
+
+    <div class="amount-area">
+      <p class="amount-label">Importe</p>
+      <div class="amount-wrap">
+        <span class="currency-sym">$</span>
+        <input id="txedit-amount" type="number" min="0.01" step="0.01"
+          class="amount-input" placeholder="0,00" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <input type="hidden" id="txedit-id" />
+      <input type="hidden" id="txedit-type" />
+      <input id="txedit-vehicle" type="hidden" />
+
+      <div class="field">
+        <label for="txedit-description">Descripción</label>
+        <input id="txedit-description" type="text" maxlength="200" class="field-input" />
+      </div>
+      <div class="grid-1">
+        <div class="field">
+          <label for="txedit-date">Fecha</label>
+          <input id="txedit-date" type="date" class="field-input" />
+        </div>
+      </div>
+
+      <div class="field no-border">
+        <label for="txedit-notes">Notas <span class="optional">· opcional</span></label>
+        <input id="txedit-notes" type="text" maxlength="300" class="field-input" />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="txedit-delete" class="btn-delete">Eliminar</button>
+      <button id="txedit-submit" class="btn-save">
+        <span id="txedit-text">Guardar</span>
+        <span id="txedit-loader" style="display:none; align-items:center; gap:6px;">
+          <svg class="spinner" width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Guardando...
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: flex-end;
+    z-index: 200;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    background: rgba(30, 80, 30, 0.3);
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .overlay.expense { background: rgba(80, 20, 20, 0.3); }
+
+  .modal {
+    background: white; width: 100%; max-width: 480px;
+    margin: 0 auto;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .overlay.open .modal { transform: translateY(0); }
+
+  .modal-handle { width: 32px; height: 3px; border-radius: 99px; margin: 14px auto 0; background: #C0DD97; transition: background 0.2s; }
+  .overlay.expense .modal-handle { background: #F7C1C1; }
+
+  .modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 18px 0; }
+
+  .modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1; color: var(--color-income); transition: color 0.2s; }
+  .overlay.expense .modal-title { color: var(--color-expense); }
+
+  .modal-subtitle { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.06em; margin-top: 4px; }
+
+  .modal-close {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--color-income-light); border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--color-income);
+    flex-shrink: 0; margin-top: 2px; transition: background 0.2s, color 0.2s;
+  }
+  .overlay.expense .modal-close { background: var(--color-expense-light); color: var(--color-expense); }
+
+  .modal-error {
+    margin: 10px 18px 0;
+    background: var(--color-expense-light); color: var(--color-expense);
+    font-family: var(--font-sans); font-size: 12px;
+    padding: 10px 12px; border-radius: 8px; line-height: 1.5;
+  }
+
+  .amount-area { padding: 14px 18px; border-bottom: 0.5px solid #f3f3f3; }
+  .amount-label { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+  .amount-wrap  { display: flex; align-items: baseline; gap: 4px; }
+
+  .currency-sym { font-family: var(--font-mono); font-size: 22px; font-weight: 500; color: var(--color-income); transition: color 0.2s; }
+  .overlay.expense .currency-sym { color: var(--color-expense); }
+
+  .amount-input {
+    font-family: var(--font-mono); font-size: 32px; font-weight: 500;
+    border: none; outline: none; background: transparent; width: 100%;
+    color: var(--color-income); transition: color 0.2s;
+  }
+  .overlay.expense .amount-input { color: var(--color-expense); }
+  .amount-input::placeholder { color: #e5e7eb; }
+
+  .modal-body { padding: 4px 18px 0; display: flex; flex-direction: column; }
+
+  .field { padding: 13px 0; border-bottom: 0.5px solid #f3f3f3; }
+  .field.no-border { border-bottom: none; }
+  .field label { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 5px; }
+  .optional { color: #d1d5db; font-size: 9px; text-transform: none; letter-spacing: 0; }
+
+  .field-input { border: none; outline: none; font-family: var(--font-sans); font-size: 15px; color: var(--color-carbon); background: transparent; width: 100%; padding: 0; appearance: none; }
+  .field-input::placeholder { color: #d1d5db; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 0.5px solid #f3f3f3; }
+  .grid-2 .field { border-bottom: none; padding: 13px 0; }
+  .grid-2 .field:first-child { border-right: 0.5px solid #f3f3f3; padding-right: 14px; }
+  .grid-2 .field:last-child { padding-left: 14px; }
+
+  .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 18px 0; }
+
+  .btn-delete {
+    padding: 13px; border-radius: 12px;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    background: var(--color-expense-light); color: var(--color-expense);
+    border: none; cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-delete:hover { opacity: 0.8; }
+
+  .btn-save {
+    padding: 13px; border-radius: 12px;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    color: white; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--color-income); transition: background 0.2s;
+  }
+  .overlay.expense .btn-save { background: var(--color-expense); }
+  .btn-save:disabled { opacity: 0.65; cursor: not-allowed; }
+
+  .spinner { animation: spin 0.8s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+<script>
+  type TxType = 'income' | 'expense';
+
+  const overlay    = document.getElementById('txedit-overlay')!;
+  const titleEl    = document.getElementById('txedit-title')!;
+  const subtitleEl = document.getElementById('txedit-subtitle')!;
+  const errorBox   = document.getElementById('txedit-error')!;
+  const btnClose   = document.getElementById('txedit-close')!;
+  const btnDelete  = document.getElementById('txedit-delete') as HTMLButtonElement;
+  const btnSubmit  = document.getElementById('txedit-submit') as HTMLButtonElement;
+  const submitText   = document.getElementById('txedit-text')!;
+  const submitLoader = document.getElementById('txedit-loader')!;
+
+  const fields = {
+    id:          document.getElementById('txedit-id')          as HTMLInputElement,
+    type:        document.getElementById('txedit-type')        as HTMLInputElement,
+    amount:      document.getElementById('txedit-amount')      as HTMLInputElement,
+    description: document.getElementById('txedit-description') as HTMLInputElement,
+    vehicle:     document.getElementById('txedit-vehicle')     as HTMLSelectElement,
+    date:        document.getElementById('txedit-date')        as HTMLInputElement,
+    notes:       document.getElementById('txedit-notes')       as HTMLInputElement,
+  };
+
+  const config = {
+    income:  { title: 'Editar ingreso',  subtitle: 'modificá los datos del cobro' },
+    expense: { title: 'Editar gasto',    subtitle: 'modificá los datos del pago'  },
+  };
+
+  document.addEventListener('open-tx-edit', (e: Event) => {
+    const data = (e as CustomEvent).detail;
+    const type: TxType = data.type;
+
+    // Aplicar tema
+    overlay.classList.toggle('expense', type === 'expense');
+    titleEl.textContent    = config[type].title;
+    subtitleEl.textContent = config[type].subtitle;
+
+    // Cargar datos
+    fields.id.value          = data.id;
+    fields.type.value        = type;
+    fields.amount.value      = data.amount;
+    fields.description.value = data.description;
+    fields.vehicle.value     = data.vehicleId;
+    fields.date.value        = new Date(data.date).toISOString().split('T')[0];
+    fields.notes.value       = data.notes ?? '';
+
+    showError('');
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  });
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  function showError(msg: string) {
+    errorBox.textContent   = msg;
+    errorBox.style.display = msg ? 'block' : 'none';
+  }
+
+  function setLoading(on: boolean) {
+    btnSubmit.disabled         = on;
+    submitText.style.display   = on ? 'none' : 'inline';
+    submitLoader.style.display = on ? 'flex' : 'none';
+  }
+
+  btnClose.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+  btnDelete.addEventListener('click', async () => {
+    if (!confirm('¿Eliminar este movimiento?')) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/transactions/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: fields.id.value }),
+      });
+      if (!res.ok) { showError('Error al eliminar.'); return; }
+      closeModal();
+      window.location.reload();
+    } catch { showError('Error de conexión.'); }
+    finally { setLoading(false); }
+  });
+
+  btnSubmit.addEventListener('click', async () => {
+    showError('');
+    const data = {
+      id:          fields.id.value,
+      amount:      fields.amount.value,
+      description: fields.description.value.trim(),
+      vehicleId:   fields.vehicle.value,
+      date:        fields.date.value,
+      notes:       fields.notes.value.trim(),
+    };
+    if (!data.amount || !data.description || !data.vehicleId || !data.date) {
+      showError('Completá los campos obligatorios.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/transactions/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) { showError(json.error ?? 'Error al guardar.'); return; }
+      closeModal();
+      window.location.reload();
+    } catch { showError('Error de conexión.'); }
+    finally { setLoading(false); }
+  });
+</script>

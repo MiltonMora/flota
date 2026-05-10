@@ -13,6 +13,9 @@ const { title = 'Flota Vial' } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>{title}</title>
+    <style is:global>
+      @import '@/styles/global.css';
+    </style>
   </head>
   <body>
     <main class="app-container">

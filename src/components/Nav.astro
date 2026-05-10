@@ -2,31 +2,10 @@
 const currentPath = Astro.url.pathname;
 
 const navItems = [
-  {
-    href: '/dashboard',
-    label: 'Inicio',
-    icon: 'home',
-  },
-  {
-    href: '/vehicles/new',
-    label: 'Vehículo',
-    icon: 'car',
-  },
-  {
-    href: '/transactions/income',
-    label: 'Ingreso',
-    icon: 'income',
-  },
-  {
-    href: '/transactions/expense',
-    label: 'Gasto',
-    icon: 'expense',
-  },
-  {
-    href: '/profile',
-    label: 'Perfil',
-    icon: 'user',
-  },
+  { href: '/dashboard',            label: 'Inicio',   icon: 'home'    },
+  { href: '/vehicles',         label: 'Vehículo', icon: 'car'     },
+  { href: '/transactions/income',  label: 'Ingreso',  icon: 'income'  },
+  { href: '/transactions/expense', label: 'Gasto',    icon: 'expense' },
 ];
 
 const isActive = (href: string) =>
@@ -34,55 +13,42 @@ const isActive = (href: string) =>
 ---
 
 <nav class="mobile-nav">
-  {
-    navItems.map((item) => (
-      <a
-        href={item.href}
-        class={`nav-item ${isActive(item.href) ? 'active' : ''}`}
-      >
-        <span class="nav-icon">
-          {item.icon === 'home' && (
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M3 10.5L12 3l9 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M5 9.5V20h14V9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          )}
+  {navItems.map((item) => (
+    <a href={item.href} class={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
 
-          {item.icon === 'car' && (
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M5 16l1-5h12l1 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-              <path d="M7 16h10" stroke="currentColor" stroke-width="1.8"/>
-              <circle cx="8" cy="18" r="1.5" fill="currentColor"/>
-              <circle cx="16" cy="18" r="1.5" fill="currentColor"/>
-            </svg>
-          )}
+      <span class={`nav-icon icon-${item.icon}`}>
+        {item.icon === 'home' && (
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M3 10.5L12 3l9 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 9.5V20h14V9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        )}
+        {item.icon === 'car' && (
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M5 16l1-5h12l1 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M7 16h10" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="8" cy="18" r="1.5" fill="currentColor"/>
+            <circle cx="16" cy="18" r="1.5" fill="currentColor"/>
+          </svg>
+        )}
+        {item.icon === 'income' && (
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M7 10l5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        )}
+        {item.icon === 'expense' && (
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M17 14l-5 5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        )}
+      </span>
 
-          {item.icon === 'income' && (
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M12 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-              <path d="M7 10l5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          )}
+      <span class="nav-label">{item.label}</span>
 
-          {item.icon === 'expense' && (
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M12 5v14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-              <path d="M17 14l-5 5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          )}
-
-          {item.icon === 'user' && (
-            <svg viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/>
-              <path d="M5.5 19c1.8-3 4.3-4.5 6.5-4.5S16.7 16 18.5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-          )}
-        </span>
-
-        <span class="nav-label">{item.label}</span>
-      </a>
-    ))
-  }
+    </a>
+  ))}
 </nav>
 
 <style>
@@ -93,12 +59,11 @@ const isActive = (href: string) =>
     transform: translateX(-50%);
     width: 100%;
     max-width: 480px;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.97);
     border-top: 1px solid #e5e7eb;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    padding: 0.45rem 0.35rem calc(0.45rem + env(safe-area-inset-bottom));
+    grid-template-columns: repeat(4, 1fr);
+    padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
     z-index: 100;
   }
 
@@ -106,42 +71,53 @@ const isActive = (href: string) =>
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
+    gap: 3px;
     text-decoration: none;
     color: #888780;
-    padding: 0.45rem 0;
-    border-radius: 10px;
-    transition:
-      background-color 0.15s ease,
-      color 0.15s ease,
-      transform 0.15s ease;
-  }
-
-  .nav-item:hover {
-    background-color: var(--color-navy-light);
-    color: var(--color-navy);
+    padding: 6px 4px;
+    border-radius: 8px;
+    transition: color 0.15s;
   }
 
   .nav-item.active {
     color: var(--color-navy);
-    background-color: var(--color-navy-light);
   }
 
+  /* Punto indicador amber en ítem activo */
   .nav-item.active .nav-icon {
-    transform: translateY(-1px);
+    position: relative;
+  }
+  .nav-item.active .nav-icon::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background: var(--color-amber-accent);
+    border-radius: 50%;
+  }
+
+  /* Colores semánticos para ingreso y gasto cuando están activos */
+  .nav-item.active .icon-income {
+    color: var(--color-income);
+  }
+  .nav-item.active .icon-expense {
+    color: var(--color-expense);
   }
 
   .nav-icon {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     display: flex;
-    transition: transform 0.15s ease;
+    align-items: center;
+    justify-content: center;
   }
 
   .nav-icon svg {
-    width: 100%;
-    height: 100%;
+    width: 20px;
+    height: 20px;
   }
 
   .nav-label {
@@ -150,11 +126,5 @@ const isActive = (href: string) =>
     font-weight: 500;
     letter-spacing: 0.04em;
     line-height: 1;
-  }
-
-  @media (min-width: 768px) {
-    .mobile-nav {
-      max-width: 520px;
-    }
   }
 </style>
