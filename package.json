@@ -13,7 +13,8 @@
     "db:generate": "drizzle-kit generate --config=src/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=src/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=src/drizzle.config.ts",
-    "generate-types": "wrangler types"
+    "generate-types": "wrangler types",
+    "start": "node ./dist/server/entry.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^10.1.0",
