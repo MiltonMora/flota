@@ -1,84 +1,97 @@
 ---
+import ConceptPicker from '@/components/ConceptPicker.astro';
+
 interface Props {
   vehicles: { id: string; plate: string; brand: string; model: string }[];
 }
 const { vehicles } = Astro.props;
+
+// Con pocos vehículos se eligen con un toque; con muchos, desplegable
+const useChips = vehicles.length > 0 && vehicles.length <= 4;
+const onlyOne  = vehicles.length === 1 ? vehicles[0].id : '';
 ---
 
 <div id="tx-modal-overlay" class="overlay" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tx-modal-title">
 
     <div class="modal-handle"></div>
 
     <div class="modal-header">
       <div>
         <h2 id="tx-modal-title" class="modal-title">Nuevo ingreso</h2>
-        <p id="tx-modal-subtitle" class="modal-subtitle">registrá un cobro o entrada</p>
+        <p id="tx-modal-subtitle" class="modal-subtitle">registra un cobro o entrada</p>
       </div>
-      <button id="tx-modal-close" class="modal-close" aria-label="Cerrar">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+      <button id="tx-modal-close" type="button" class="modal-close" aria-label="Cerrar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
       </button>
     </div>
 
-    <div id="tx-modal-error" class="modal-error" style="display:none;"></div>
-
-    <!-- Importe destacado -->
-    <div class="amount-area">
-      <p class="amount-label">Importe</p>
-      <div class="amount-wrap">
-        <span class="currency-sym">$</span>
-        <input id="tx-amount" type="number" min="0.01" step="0.01"
-          class="amount-input" placeholder="0,00" autocomplete="off" />
-      </div>
-    </div>
-
-    <div class="modal-body">
-      <div class="field">
-        <label for="tx-description">Descripción</label>
-        <input id="tx-description" type="text" maxlength="200"
-          class="field-input" placeholder="Ej: Flete zona norte" />
-      </div>
-
-      <div class="grid-2">
-        <div class="field">
-          <label for="tx-vehicle">Vehículo</label>
-          <select id="tx-vehicle" class="field-input">
-            <option value="">Seleccioná...</option>
-            {vehicles.map((v) => (
-              <option value={v.id}>{v.plate} — {v.brand} {v.model}</option>
-            ))}
-          </select>
+    <form id="tx-form" novalidate>
+      <!-- Importe destacado -->
+      <div class="amount-area">
+        <label class="amount-label" for="tx-amount">Importe *</label>
+        <div class="amount-wrap">
+          <span class="currency-sym" aria-hidden="true">$</span>
+          <input id="tx-amount" type="text" inputmode="numeric" autocomplete="off"
+            class="amount-input" placeholder="0" aria-describedby="tx-amount-msg" />
         </div>
+        <span id="tx-amount-msg" class="field-msg"></span>
+      </div>
+
+      <div class="modal-body">
+        <ConceptPicker prefix="tx" />
+
+        {useChips ? (
+          <fieldset id="tx-vehicle-group" class="vehicle-picker field" aria-describedby="tx-vehicle-msg">
+            <legend>Vehículo *</legend>
+            <div class="vehicle-chips">
+              {vehicles.map((v) => (
+                <label class="vehicle-chip" title={`${v.brand} ${v.model}`}>
+                  <input type="radio" name="tx-vehicle" value={v.id} data-plate={v.plate} checked={v.id === onlyOne} />
+                  <span>{v.plate}</span>
+                </label>
+              ))}
+            </div>
+            <span id="tx-vehicle-msg" class="field-msg"></span>
+          </fieldset>
+        ) : (
+          <div class="field">
+            <label for="tx-vehicle">Vehículo *</label>
+            <select id="tx-vehicle" class="field-input" aria-describedby="tx-vehicle-msg">
+              <option value="">Selecciona…</option>
+              {vehicles.map((v) => (
+                <option value={v.id} data-plate={v.plate}>{v.plate} — {v.brand} {v.model}</option>
+              ))}
+            </select>
+            <span id="tx-vehicle-msg" class="field-msg"></span>
+            {vehicles.length === 0 && (
+              <p class="no-vehicles">Aún no tienes vehículos. <a href="/vehicles">Añade uno primero</a>.</p>
+            )}
+          </div>
+        )}
+
         <div class="field">
-          <label for="tx-date">Fecha</label>
-          <input id="tx-date" type="date" class="field-input" />
+          <label for="tx-date">Fecha *</label>
+          <input id="tx-date" type="date" class="field-input" aria-describedby="tx-date-msg" />
+          <span id="tx-date-msg" class="field-msg"></span>
+        </div>
+
+        <div class="field no-border">
+          <label for="tx-notes">
+            Notas <span class="optional">· opcional</span>
+          </label>
+          <input id="tx-notes" type="text" maxlength="300"
+            class="field-input" placeholder="Referencia, cliente, proveedor..." />
         </div>
       </div>
 
-      <div class="field no-border">
-        <label for="tx-notes">
-          Notas <span class="optional">· opcional</span>
-        </label>
-        <input id="tx-notes" type="text" maxlength="300"
-          class="field-input" placeholder="Referencia, cliente, proveedor..." />
+      <div class="modal-actions">
+        <button id="tx-modal-cancel" type="button" class="btn-cancel">Cancelar</button>
+        <button id="tx-modal-submit" type="submit" class="btn-save">Guardar ingreso</button>
       </div>
-    </div>
-
-    <div class="modal-actions">
-      <button id="tx-modal-cancel" class="btn-cancel">Cancelar</button>
-      <button id="tx-modal-submit" class="btn-save">
-        <span id="tx-submit-text">Guardar ingreso</span>
-        <span id="tx-submit-loader" style="display:none; align-items:center; gap:6px;">
-          <svg class="spinner" width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          Guardando...
-        </span>
-      </button>
-    </div>
+    </form>
 
   </div>
 </div>
@@ -148,14 +161,14 @@ const { vehicles } = Astro.props;
   .modal-subtitle {
     font-family: var(--font-mono);
     font-size: 9px;
-    color: #B4B2A9;
+    color: #6B6A63;
     letter-spacing: 0.06em;
     margin-top: 4px;
   }
 
   .modal-close {
-    width: 26px;
-    height: 26px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: var(--color-income-light);
     border: none;
@@ -173,17 +186,6 @@ const { vehicles } = Astro.props;
     color: var(--color-expense);
   }
 
-  /* ── Error ── */
-  .modal-error {
-    margin: 10px 18px 0;
-    background: var(--color-expense-light);
-    color: var(--color-expense);
-    font-family: var(--font-sans);
-    font-size: 12px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    line-height: 1.5;
-  }
 
   /* ── Importe ── */
   .amount-area {
@@ -192,9 +194,10 @@ const { vehicles } = Astro.props;
   }
 
   .amount-label {
+    display: block;
     font-family: var(--font-mono);
     font-size: 9px;
-    color: #B4B2A9;
+    color: #6B6A63;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     margin-bottom: 6px;
@@ -245,7 +248,7 @@ const { vehicles } = Astro.props;
   .field label {
     font-family: var(--font-mono);
     font-size: 9px;
-    color: #B4B2A9;
+    color: #6B6A63;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     display: block;
@@ -253,7 +256,7 @@ const { vehicles } = Astro.props;
   }
 
   .optional {
-    color: #d1d5db;
+    color: var(--color-muted);
     font-size: 9px;
     text-transform: none;
     letter-spacing: 0;
@@ -295,14 +298,18 @@ const { vehicles } = Astro.props;
     padding: 14px 18px 0;
   }
 
+  .no-vehicles { font-family: var(--font-sans); font-size: 12px; color: var(--color-muted-strong); margin: 6px 0 0; }
+  .no-vehicles a { color: var(--color-navy); }
+
   .btn-cancel {
+    min-height: 48px;
     padding: 13px;
     border-radius: 12px;
     font-family: var(--font-sans);
     font-size: 13px;
     font-weight: 600;
     background: #F5F4F0;
-    color: #888780;
+    color: #6B6A63;
     border: none;
     cursor: pointer;
     transition: background 0.15s;
@@ -310,6 +317,7 @@ const { vehicles } = Astro.props;
   .btn-cancel:hover { background: #e5e7eb; }
 
   .btn-save {
+    min-height: 48px;
     padding: 13px;
     border-radius: 12px;
     font-family: var(--font-sans);
@@ -328,52 +336,77 @@ const { vehicles } = Astro.props;
   .overlay.expense .btn-save { background: var(--color-expense); }
   .btn-save:disabled { opacity: 0.65; cursor: not-allowed; }
 
-  .spinner {
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
-</style>
 
+
+  /* ── Selector de vehículo ── */
+  .vehicle-picker { border: none; margin: 0; padding: 11px 0; border-bottom: 0.5px solid #f3f3f3; }
+  .vehicle-picker legend {
+    font-family: var(--font-mono); font-size: 9px; color: var(--color-muted);
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; padding: 0;
+  }
+  .has-error legend { color: var(--color-expense); }
+  .vehicle-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vehicle-chip { position: relative; }
+  .vehicle-chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .vehicle-chip span {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px;
+    border-radius: 10px; border: 1.5px solid #e5e7eb; background: white;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--color-navy);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .vehicle-chip input:checked + span { border-color: var(--color-navy); background: var(--color-navy-light); }
+  .vehicle-chip input:focus-visible + span { box-shadow: 0 0 0 3px rgba(42, 95, 165, 0.25); }
+  .vehicle-picker.field { padding-left: 0; }
+  .vehicle-picker.has-error { box-shadow: inset 3px 0 0 var(--color-expense); padding-left: 10px !important; }
+</style>
 <script>
+  import {
+    api, toast, flashToast, setButtonState, setFieldError, clearFieldErrors,
+    formatAmountInput, parseAmount, enqueueTx, reloadWithLoading, wait,
+  } from '@/scripts/ui';
+  import { conceptPicker } from '@/scripts/concept-picker';
+
   type TxType = 'income' | 'expense';
 
-  const overlay  = document.getElementById('tx-modal-overlay')!;
-  const title    = document.getElementById('tx-modal-title')!;
-  const subtitle = document.getElementById('tx-modal-subtitle')!;
-  const errorBox = document.getElementById('tx-modal-error')!;
+  const overlay   = document.getElementById('tx-modal-overlay')!;
+  const form      = document.getElementById('tx-form') as HTMLFormElement;
+  const title     = document.getElementById('tx-modal-title')!;
+  const subtitle  = document.getElementById('tx-modal-subtitle')!;
   const btnClose  = document.getElementById('tx-modal-close')!;
   const btnCancel = document.getElementById('tx-modal-cancel')!;
   const btnSubmit = document.getElementById('tx-modal-submit') as HTMLButtonElement;
-  const submitText   = document.getElementById('tx-submit-text')!;
-  const submitLoader = document.getElementById('tx-submit-loader')!;
+  const concept   = conceptPicker('tx');
 
   const fields = {
-    amount:      document.getElementById('tx-amount')       as HTMLInputElement,
-    description: document.getElementById('tx-description')  as HTMLInputElement,
-    vehicle:     document.getElementById('tx-vehicle')      as HTMLSelectElement,
-    date:        document.getElementById('tx-date')         as HTMLInputElement,
-    notes:       document.getElementById('tx-notes')        as HTMLInputElement,
+    amount:      document.getElementById('tx-amount')      as HTMLInputElement,
+    date:        document.getElementById('tx-date')        as HTMLInputElement,
+    notes:       document.getElementById('tx-notes')       as HTMLInputElement,
   };
+
+  // Vehículo: chips (radios) o <select>, según cuántos haya
+  const vehicleGroup  = document.getElementById('tx-vehicle-group');
+  const vehicleSelect = document.getElementById('tx-vehicle') as HTMLSelectElement | null;
+  const vehicleField  = (vehicleGroup ?? vehicleSelect)!;
+  const defaultVehicle = vehicleGroup?.querySelector<HTMLInputElement>('input:checked')?.value ?? '';
+
+  function selectedVehicle(): { id: string; plate: string } {
+    if (vehicleGroup) {
+      const r = vehicleGroup.querySelector<HTMLInputElement>('input:checked');
+      return { id: r?.value ?? '', plate: r?.dataset.plate ?? '' };
+    }
+    const opt = vehicleSelect!.selectedOptions[0];
+    return { id: vehicleSelect!.value, plate: opt?.dataset.plate ?? '' };
+  }
 
   let currentType: TxType = 'income';
+  let submitted = false;
+  let busy      = false;
 
   const config = {
-    income: {
-      title:    'Nuevo ingreso',
-      subtitle: 'registrá un cobro o entrada',
-      btn:      'Guardar ingreso',
-    },
-    expense: {
-      title:    'Nuevo gasto',
-      subtitle: 'registrá un pago o salida',
-      btn:      'Guardar gasto',
-    },
+    income:  { title: 'Nuevo ingreso', subtitle: 'registra un cobro o entrada', btn: 'Guardar ingreso', saved: 'Ingreso guardado' },
+    expense: { title: 'Nuevo gasto',   subtitle: 'registra un pago o salida',   btn: 'Guardar gasto',   saved: 'Gasto guardado'   },
   };
 
-  // Escuchar eventos externos para abrir
   document.addEventListener('open-tx-modal', (e: Event) => {
     const type = (e as CustomEvent<{ type: TxType }>).detail?.type ?? 'income';
     openModal(type);
@@ -381,83 +414,120 @@ const { vehicles } = Astro.props;
 
   function openModal(type: TxType) {
     currentType = type;
-    applyTheme(type);
-    overlay.classList.add('open');
-    overlay.setAttribute('aria-hidden', 'false');
-    // Fecha por defecto: hoy
-    fields.date.value = new Date().toISOString().split('T')[0];
-    fields.amount.focus();
-  }
-
-  function applyTheme(type: TxType) {
     const c = config[type];
     title.textContent    = c.title;
     subtitle.textContent = c.subtitle;
-    submitText.textContent = c.btn;
     overlay.classList.toggle('expense', type === 'expense');
+    concept.setType(type);
+    setButtonState(btnSubmit, 'idle', c.btn);
+
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    fields.date.value = new Date().toLocaleDateString('en-CA'); // hoy en hora local, YYYY-MM-DD
+    fields.amount.focus();
   }
 
   function closeModal() {
+    if (busy) return;
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
     resetForm();
   }
 
   function resetForm() {
-    Object.values(fields).forEach((el) => (el.value = ''));
-    showError('');
+    form.reset();
+    if (vehicleGroup && defaultVehicle) {
+      vehicleGroup.querySelector<HTMLInputElement>(`input[value="${CSS.escape(defaultVehicle)}"]`)!.checked = true;
+    }
+    submitted = false;
+    clearFieldErrors(form);
+    setFieldError(vehicleField, '');
+    concept.value = '';
   }
 
-  function showError(msg: string) {
-    errorBox.textContent   = msg;
-    errorBox.style.display = msg ? 'block' : 'none';
+  // ── Validación en línea ──
+  function validate(): boolean {
+    const amount = parseAmount(fields.amount.value);
+    const errors: [HTMLElement, string][] = [
+      [fields.amount,      amount > 0 ? '' : 'Introduce un importe mayor que 0.'],
+      [concept.input,      concept.value ? '' : 'Elige un concepto de la lista.'],
+      [vehicleField,       selectedVehicle().id ? '' : 'Elige un vehículo.'],
+      [fields.date,        fields.date.value ? '' : 'Indica la fecha.'],
+    ];
+    errors.forEach(([el, msg]) => setFieldError(el, msg));
+    const first = errors.find(([, msg]) => msg);
+    if (first) {
+      const el = first[0];
+      const target =
+        el === vehicleField ? el.querySelector<HTMLElement>('input, select')
+        : el;
+      target?.focus();
+    }
+    return !first;
   }
 
-  function setLoading(on: boolean) {
-    btnSubmit.disabled           = on;
-    submitText.style.display     = on ? 'none'  : 'inline';
-    submitLoader.style.display   = on ? 'flex'  : 'none';
-  }
+  fields.amount.addEventListener('input', () => {
+    formatAmountInput(fields.amount);
+    if (submitted) validate();
+  });
+  vehicleField.addEventListener('change', () => { if (submitted) validate(); });
+  concept.root.addEventListener('concept-change', () => { if (submitted) validate(); });
+  fields.date.addEventListener('change',   () => { if (submitted) validate(); });
 
   btnClose.addEventListener('click', closeModal);
   btnCancel.addEventListener('click', closeModal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal();
+  });
 
-  btnSubmit.addEventListener('click', async () => {
-    showError('');
+  // ── Guardar ──
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    submitted = true;
+    if (concept.input.value.trim()) concept.commit(); // por si envía sin salir del campo
+    if (!validate()) return;
 
+    const c       = config[currentType];
+    const vehicle = selectedVehicle();
     const data = {
       type:        currentType,
-      amount:      fields.amount.value,
-      description: fields.description.value.trim(),
-      vehicleId:   fields.vehicle.value,
+      amount:      parseAmount(fields.amount.value),
+      description: concept.label,
+      category:    concept.value,
+      vehicleId:   vehicle.id,
       date:        fields.date.value,
-      notes:       fields.notes.value.trim(),
+      notes:       fields.notes.value.trim() || undefined,
     };
 
-    if (!data.amount || !data.description || !data.vehicleId || !data.date) {
-      showError('Completá los campos obligatorios.');
+    busy = true;
+    setButtonState(btnSubmit, 'loading', 'Guardando…');
+    const res = await api('/api/transactions/create', 'POST', data);
+
+    if (!res.ok && res.offline) {
+      // Sin conexión: se guarda en el dispositivo y se sincroniza al reconectar
+      enqueueTx({ plate: vehicle.plate, data });
+      busy = false;
+      closeModal();
+      toast({ kind: 'info', title: 'Guardado sin conexión', body: 'Se sincronizará cuando vuelvas a tener red.' });
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await fetch('/api/transactions/create', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(data),
-      });
-
-      const json = await res.json();
-      if (!res.ok) { showError(json.error ?? 'Error al guardar.'); return; }
-
-      closeModal();
-      window.location.reload();
-    } catch {
-      showError('Error de conexión. Intentá de nuevo.');
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      busy = false;
+      setButtonState(btnSubmit, 'idle', c.btn);
+      toast({ kind: 'error', title: 'No se pudo guardar', body: res.error });
+      return;
     }
+
+    setButtonState(btnSubmit, 'done', 'Guardado');
+    await wait(600);
+    flashToast({
+      kind:  'success',
+      title: c.saved,
+      body:  `${currentType === 'income' ? '+' : '−'}$ ${fields.amount.value} · ${vehicle.plate}`,
+    });
+    reloadWithLoading();
   });
 </script>

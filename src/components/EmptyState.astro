@@ -1,0 +1,85 @@
+---
+// Estado vacío con llamada a la acción.
+interface Props {
+  title:        string;
+  text:         string;
+  actionLabel?: string;
+  /** id del botón de acción (la página le engancha el comportamiento) */
+  actionId?:    string;
+  linkLabel?:   string;
+  linkHref?:    string;
+  tone?:        'income' | 'expense' | 'navy';
+  icon?:        'list' | 'car';
+}
+
+const {
+  title, text, actionLabel, actionId, linkLabel, linkHref,
+  tone = 'navy', icon = 'list',
+} = Astro.props;
+---
+
+<div class={`empty-state tone-${tone}`} data-loading-hide>
+  <div class="empty-icon" aria-hidden="true">
+    {icon === 'list' ? (
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+        <path d="M4 4h16v16H4zM4 9h16M9 4v16" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      </svg>
+    ) : (
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+        <path d="M5 16l1-5h12l1 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M4 16h16v3H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <circle cx="8" cy="19" r="1.5" fill="currentColor"/>
+        <circle cx="16" cy="19" r="1.5" fill="currentColor"/>
+      </svg>
+    )}
+  </div>
+  <h2 class="empty-title">{title}</h2>
+  <p class="empty-text">{text}</p>
+  {actionLabel && (
+    <button type="button" id={actionId} class="empty-action">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+      {actionLabel}
+    </button>
+  )}
+  {linkLabel && linkHref && <a href={linkHref} class="empty-link">{linkLabel}</a>}
+</div>
+
+<style>
+  .tone-income  { --tone: var(--color-income);  --tone-light: var(--color-income-light);  }
+  .tone-expense { --tone: var(--color-expense); --tone-light: var(--color-expense-light); }
+  .tone-navy    { --tone: var(--color-navy);    --tone-light: var(--color-navy-light);    }
+
+  .empty-state {
+    background: white;
+    border: 0.5px dashed #c9c7bf;
+    border-radius: 14px;
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .empty-icon {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: var(--tone-light); color: var(--tone);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .empty-title { font-family: var(--font-sans); font-size: 17px; font-weight: 600; color: var(--color-carbon); margin: 0; }
+  .empty-text  { font-family: var(--font-sans); font-size: 14px; line-height: 1.45; color: var(--color-muted-strong); margin: 0; max-width: 300px; }
+  .empty-action {
+    margin-top: 4px;
+    min-height: 48px; padding: 0 20px;
+    border-radius: 10px; border: none;
+    background: var(--tone); color: white;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+  .empty-link {
+    font-family: var(--font-sans); font-size: 13px;
+    color: var(--color-navy); padding: 10px;
+  }
+</style>

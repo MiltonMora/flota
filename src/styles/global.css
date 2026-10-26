@@ -14,6 +14,8 @@
   --color-income-light:   #EAF3DE;
   --color-expense:        #A32D2D;
   --color-expense-light:  #FCEBEB;
+  --color-muted:          #6B6A63; /* texto secundario, contraste ≥ 4.5:1 sobre blanco */
+  --color-muted-strong:   #55544E;
 
   /* Tipografía */
   --font-display: "Barlow Condensed", sans-serif;
@@ -134,4 +136,9 @@
     color: var(--color-expense);
     font-weight: 500;
   }
+}
+/* Texto solo para lectores de pantalla */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }

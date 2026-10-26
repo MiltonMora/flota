@@ -1,0 +1,267 @@
+<!-- Infraestructura de UI global: barra de carga, aviso offline, toasts y hoja de confirmación -->
+
+<div class="page-progress" aria-hidden="true"><div class="page-progress-bar"></div></div>
+
+<div id="offline-banner" class="offline-banner" role="status" hidden>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M2 8.8a15 15 0 0 1 4.2-2.5M9.8 5.2A15 15 0 0 1 22 8.8M5 12.5a10 10 0 0 1 3.4-2M15.6 10.5A10 10 0 0 1 19 12.5M8.5 16a5 5 0 0 1 7 0M12 20h.01M3 3l18 18" stroke="#F5A623" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <span id="offline-text">Sin conexión. Los movimientos nuevos se guardarán al reconectar.</span>
+</div>
+
+<div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+
+<div id="confirm-overlay" class="confirm-overlay" aria-hidden="true">
+  <div class="confirm-sheet" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+    <div class="confirm-handle" aria-hidden="true"></div>
+    <div class="confirm-icon" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M12 8v5M12 16.5h.01M10.3 3.9L2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2 id="confirm-title" class="confirm-title"></h2>
+    <p id="confirm-body" class="confirm-body"></p>
+    <div id="confirm-require" class="confirm-require" hidden>
+      <label id="confirm-require-label" for="confirm-input"></label>
+      <input id="confirm-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+    </div>
+    <div class="confirm-actions">
+      <button id="confirm-cancel" type="button" class="confirm-btn confirm-btn-cancel">Cancelar</button>
+      <button id="confirm-ok" type="button" class="confirm-btn confirm-btn-danger">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<style is:global>
+  /* ── Barra de progreso de navegación ── */
+  .page-progress {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    z-index: 400; overflow: hidden; pointer-events: none;
+    opacity: 0; transition: opacity 0.15s;
+    background: var(--color-navy-light);
+  }
+  .page-progress-bar {
+    width: 35%; height: 100%; background: var(--color-navy);
+    animation: progress-slide 1s ease-in-out infinite;
+  }
+  .is-loading .page-progress { opacity: 1; }
+  @keyframes progress-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+
+  /* ── Skeletons ── */
+  @keyframes shimmer { from { background-position: -280px 0; } to { background-position: 280px 0; } }
+  .sk {
+    background: linear-gradient(90deg, #ECEAE4 0, #F7F6F2 80px, #ECEAE4 160px);
+    background-size: 560px 100%;
+    animation: shimmer 1.2s linear infinite;
+    border-radius: 6px;
+  }
+  .skeleton-list { display: none; }
+  .is-loading .skeleton-list { display: flex; }
+  .is-loading [data-loading-hide] { display: none !important; }
+  .is-loading [data-sk-text] {
+    color: transparent !important;
+    background: linear-gradient(90deg, #ECEAE4 0, #F7F6F2 80px, #ECEAE4 160px);
+    background-size: 560px 100%;
+    animation: shimmer 1.2s linear infinite;
+    border-radius: 6px;
+  }
+
+  /* ── Aviso offline ── */
+  .offline-banner {
+    position: sticky; top: 0; z-index: 150;
+    max-width: 480px; margin: 0 auto;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    background: var(--color-carbon); color: white;
+    font-family: var(--font-sans); font-size: 13px;
+    animation: banner-in 0.25s ease-out;
+  }
+  .offline-banner[hidden] { display: none; }
+  @keyframes banner-in { from { transform: translateY(-100%); } to { transform: none; } }
+
+  /* ── Toasts ── */
+  .toast-region {
+    position: fixed; z-index: 300;
+    left: 50%; transform: translateX(-50%);
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: calc(100% - 24px); max-width: 456px;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    color: white; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    font-family: var(--font-sans);
+    animation: toast-in 0.22s ease-out;
+  }
+  .toast.leaving { animation: toast-out 0.18s ease-in forwards; }
+  .toast-success { background: var(--color-income); }
+  .toast-error   { background: var(--color-expense); }
+  .toast-info    { background: var(--color-navy); }
+  .toast-row  { display: flex; align-items: center; gap: 10px; padding: 10px 6px 10px 14px; }
+  .toast-icon { flex-shrink: 0; }
+  .toast-text { flex: 1; min-width: 0; }
+  .toast-title { font-size: 14px; font-weight: 600; margin: 0; }
+  .toast-body  { font-size: 12px; opacity: 0.92; margin: 2px 0 0; }
+  .toast-action {
+    min-height: 36px; padding: 0 12px; border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.55); background: transparent; color: white;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+  .toast-close {
+    width: 36px; height: 36px; flex-shrink: 0;
+    border: none; background: transparent; color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .toast-bar {
+    height: 3px; background: rgba(255, 255, 255, 0.55);
+    transform-origin: left;
+    animation: toast-drain var(--toast-duration, 4000ms) linear forwards;
+  }
+  @keyframes toast-in    { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  @keyframes toast-out   { to { opacity: 0; transform: translateY(8px); } }
+  @keyframes toast-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+  /* ── Hoja de confirmación ── */
+  .confirm-overlay {
+    position: fixed; inset: 0; z-index: 350;
+    display: flex; align-items: flex-end;
+    background: rgba(20, 22, 28, 0.45);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .confirm-overlay.open { opacity: 1; pointer-events: all; }
+  .confirm-sheet {
+    width: 100%; max-width: 480px; margin: 0 auto;
+    background: white; border-radius: 18px 18px 0 0;
+    padding: 10px 20px calc(24px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 14px;
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+    font-family: var(--font-sans); color: var(--color-carbon);
+  }
+  .confirm-overlay.open .confirm-sheet { transform: none; }
+  .confirm-handle { width: 40px; height: 4px; border-radius: 2px; background: #d6d4cc; align-self: center; }
+  .confirm-icon {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--color-expense-light); color: var(--color-expense);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .confirm-title { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1.05; margin: 0; }
+  .confirm-body  { font-size: 14px; line-height: 1.45; color: var(--color-muted-strong); margin: 0; }
+  .confirm-require { display: flex; flex-direction: column; gap: 6px; }
+  .confirm-require[hidden] { display: none; }
+  .confirm-require label {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--color-muted-strong);
+  }
+  .confirm-require input {
+    min-height: 44px; border-radius: 10px; border: 1.5px solid #d6d4cc;
+    padding: 0 12px; font-family: var(--font-mono); font-size: 15px;
+    text-transform: uppercase; outline: none;
+  }
+  .confirm-require input:focus    { box-shadow: 0 0 0 3px rgba(42, 95, 165, 0.2); }
+  .confirm-require input.is-valid { border-color: var(--color-income); }
+  .confirm-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .confirm-btn {
+    flex: 1; min-height: 48px; border-radius: 10px;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .confirm-btn-cancel { border: 1.5px solid #d6d4cc; background: white; color: var(--color-carbon); }
+  .confirm-btn-danger { border: none; background: var(--color-expense); color: white; }
+  .confirm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .confirm-btn-danger[data-state="loading"] { opacity: 0.85; }
+
+  /* ── Botones con estado ── */
+  .btn-spinner { animation: btn-spin 0.8s linear infinite; flex-shrink: 0; }
+  .btn-check   { animation: btn-pop 0.2s ease-out; flex-shrink: 0; }
+  @keyframes btn-spin { to { transform: rotate(360deg); } }
+  @keyframes btn-pop  { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+  button[data-state="done"] { background: var(--color-income) !important; opacity: 1 !important; }
+
+  /* ── Errores de campo ── */
+  .field-msg {
+    display: block; min-height: 0;
+    font-family: var(--font-sans); font-size: 12px;
+    color: var(--color-expense); margin-top: 4px;
+  }
+  .field-msg:empty { display: none; }
+  .has-error label { color: var(--color-expense) !important; }
+  .has-error .field-input,
+  .has-error .amount-input { caret-color: var(--color-expense); }
+  .field.has-error { box-shadow: inset 3px 0 0 var(--color-expense); padding-left: 10px !important; }
+
+  /* ── Pendiente de sincronizar ── */
+  .badge-pending {
+    background: var(--color-amber-light); color: #7A4D00;
+    padding: 2px 6px; border-radius: 4px;
+    font-family: var(--font-mono); font-size: 10px;
+  }
+  .tx-card.is-pending { opacity: 0.8; border-style: dashed !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk, .is-loading [data-sk-text], .page-progress-bar, .toast, .toast-bar,
+    .btn-spinner, .btn-check, .offline-banner { animation: none !important; }
+    .confirm-sheet, .confirm-overlay { transition: none; }
+  }
+</style>
+
+<script>
+  import {
+    showFlashToast, startPageLoading, stopPageLoading, flushPendingTx,
+    getPendingTx, toast, flashToast,
+  } from '@/scripts/ui';
+
+  // Toast pendiente de la página anterior (guardado, borrado…)
+  showFlashToast();
+
+  // ── Barra de carga + skeletons al navegar ──
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = (e.target as HTMLElement).closest('a');
+    if (!a || a.target || a.hasAttribute('download')) return;
+    const url = new URL(a.href, location.href);
+    if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search && url.hash)) return;
+    startPageLoading();
+  });
+  document.addEventListener('submit', (e) => {
+    const form = e.target as HTMLFormElement;
+    if (!e.defaultPrevented && (form.method || 'get').toLowerCase() === 'get') startPageLoading();
+  });
+  // Al volver con el botón "atrás" (bfcache) quitar el estado de carga
+  window.addEventListener('pageshow', stopPageLoading);
+
+  // ── Conexión ──
+  const banner      = document.getElementById('offline-banner')!;
+  const bannerText  = document.getElementById('offline-text')!;
+
+  const updateBanner = () => {
+    const pending = getPendingTx().length;
+    banner.hidden = navigator.onLine;
+    bannerText.textContent = pending
+      ? `Sin conexión · ${pending} ${pending === 1 ? 'movimiento pendiente' : 'movimientos pendientes'} de sincronizar.`
+      : 'Sin conexión. Los movimientos nuevos se guardarán al reconectar.';
+  };
+
+  const sync = async () => {
+    if (!getPendingTx().length) return;
+    const n = await flushPendingTx();
+    if (n > 0) {
+      flashToast({ kind: 'success', title: n === 1 ? 'Movimiento sincronizado' : `${n} movimientos sincronizados` });
+      startPageLoading();
+      location.reload();
+    }
+  };
+
+  window.addEventListener('offline', () => {
+    updateBanner();
+    toast({ kind: 'info', title: 'Sin conexión', body: 'Puedes seguir registrando movimientos.' });
+  });
+  window.addEventListener('online', () => { updateBanner(); sync(); });
+  document.addEventListener('pending-tx-change', updateBanner);
+
+  updateBanner();
+  sync();
+</script>

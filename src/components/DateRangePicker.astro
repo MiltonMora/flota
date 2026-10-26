@@ -1,0 +1,315 @@
+---
+// Selector de rango de fechas: un calendario donde se toca el inicio y luego el fin.
+// Va dentro de un <form method="GET">: envía los campos ocultos `from` y `to` (YYYY-MM-DD).
+import { monthRange, yearRange, toISODay } from '@/lib/dates';
+
+interface Props {
+  from:  string;
+  to:    string;
+  tone?: 'income' | 'expense' | 'navy';
+}
+
+const { from, to, tone = 'navy' } = Astro.props;
+
+const now  = new Date();
+const DAY  = 86_400_000;
+const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+const presets = [
+  { label: 'Este mes',     ...monthRange(now) },
+  { label: 'Mes anterior', ...monthRange(now, -1) },
+  { label: 'Últimos 30 días', from: new Date(today.getTime() - 29 * DAY), to: today },
+  { label: 'Este año',     ...yearRange(now) },
+].map((p) => ({ label: p.label, from: toISODay(p.from), to: toISODay(p.to) }));
+---
+
+<div class={`drp drp-${tone}`} data-from={from} data-to={to} data-today={toISODay(today)}>
+  <div class="drp-presets" role="group" aria-label="Rangos rápidos">
+    {presets.map((p) => (
+      <button type="button" class="drp-preset" data-from={p.from} data-to={p.to}>{p.label}</button>
+    ))}
+  </div>
+
+  <div class="drp-summary">
+    <button type="button" class="drp-sum" data-edge="start">
+      <span class="drp-sum-label">Desde</span>
+      <span class="drp-sum-value" data-out="from">—</span>
+    </button>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <button type="button" class="drp-sum" data-edge="end">
+      <span class="drp-sum-label">Hasta</span>
+      <span class="drp-sum-value" data-out="to">—</span>
+    </button>
+  </div>
+
+  <div class="drp-header">
+    <button type="button" class="drp-nav" data-nav="-1" aria-label="Mes anterior">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <span class="drp-month" aria-live="polite"></span>
+    <button type="button" class="drp-nav" data-nav="1" aria-label="Mes siguiente">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <div class="drp-weekdays" aria-hidden="true">
+    <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+  </div>
+  <div class="drp-grid"></div>
+
+  <p class="drp-hint" aria-live="polite"></p>
+
+  <input type="hidden" name="from" value={from} />
+  <input type="hidden" name="to"   value={to} />
+
+  <button type="submit" class="drp-apply">Aplicar</button>
+</div>
+
+<style is:global>
+  .drp-income  { --drp: var(--color-income);  --drp-light: var(--color-income-light);  }
+  .drp-expense { --drp: var(--color-expense); --drp-light: var(--color-expense-light); }
+  .drp-navy    { --drp: var(--color-navy);    --drp-light: var(--color-navy-light);    }
+
+  .drp { display: flex; flex-direction: column; gap: 12px; font-family: var(--font-sans); color: var(--color-carbon); }
+
+  .drp-presets { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 0 2px; }
+  .drp-presets::-webkit-scrollbar { display: none; }
+  .drp-preset {
+    flex-shrink: 0; min-height: 36px; padding: 0 14px; border-radius: 99px;
+    border: 0.5px solid #d6d4cc; background: white; color: var(--color-muted-strong);
+    font-family: var(--font-mono); font-size: 11px; cursor: pointer; white-space: nowrap;
+  }
+  .drp-preset[aria-pressed="true"] { background: var(--drp); border-color: var(--drp); color: white; }
+
+  .drp-summary { display: flex; align-items: center; gap: 8px; color: var(--color-muted); }
+  .drp-sum {
+    flex: 1; min-height: 52px; padding: 6px 12px; border-radius: 10px;
+    border: 1.5px solid #e5e7eb; background: white; text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  }
+  .drp-sum[data-active="true"] { border-color: var(--drp); box-shadow: 0 0 0 3px var(--drp-light); }
+  .drp-sum-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+  .drp-sum-value { font-size: 15px; font-weight: 600; color: var(--color-carbon); }
+
+  .drp-header { display: flex; align-items: center; justify-content: space-between; }
+  .drp-month  { font-size: 15px; font-weight: 600; }
+  .drp-nav {
+    width: 40px; height: 40px; border-radius: 10px; border: none;
+    background: var(--color-asphalt); color: var(--color-carbon); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drp-nav:hover { background: #ECEAE4; }
+
+  .drp-weekdays, .drp-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .drp-weekdays span {
+    text-align: center; font-family: var(--font-mono); font-size: 10px;
+    color: var(--color-muted); padding-bottom: 4px;
+  }
+  .drp-grid { row-gap: 2px; }
+
+  .drp-day {
+    position: relative; height: 42px; border: none; background: transparent; padding: 0;
+    font-family: var(--font-sans); font-size: 14px; color: var(--color-carbon); cursor: pointer;
+  }
+  .drp-day span {
+    position: relative; z-index: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 50%;
+  }
+  .drp-day:hover span { background: var(--color-asphalt); }
+  .drp-day.is-outside { color: #A8A69E; }
+  .drp-day.is-today span { box-shadow: inset 0 0 0 1.5px var(--drp); }
+  .drp-day.in-range::before,
+  .drp-day.is-start.has-end::before,
+  .drp-day.is-end.has-start::before {
+    content: ''; position: absolute; top: 2px; bottom: 2px; left: 0; right: 0;
+    background: var(--drp-light);
+  }
+  .drp-day.is-start.has-end::before { left: 50%; }
+  .drp-day.is-end.has-start::before { right: 50%; }
+  .drp-day.is-start span, .drp-day.is-end span { background: var(--drp) !important; color: white; font-weight: 600; }
+  .drp-day:focus-visible { outline: none; }
+  .drp-day:focus-visible span { box-shadow: 0 0 0 3px rgba(42, 95, 165, 0.35); }
+
+  .drp-hint { margin: 0; font-size: 12px; color: var(--color-muted-strong); text-align: center; min-height: 16px; }
+
+  .drp-apply {
+    min-height: 48px; border-radius: 10px; border: none;
+    background: var(--drp); color: white;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .drp-apply:disabled { opacity: 0.45; cursor: not-allowed; }
+</style>
+
+<script>
+  const DAY = 86_400_000;
+  const monthFmt = new Intl.DateTimeFormat('es-CO', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const dayFmt   = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const longFmt  = new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+  const parse = (s?: string | null) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00Z`) : null);
+  const iso   = (d: Date) => d.toISOString().slice(0, 10);
+
+  document.querySelectorAll<HTMLElement>('.drp').forEach((root) => {
+    const grid      = root.querySelector<HTMLElement>('.drp-grid')!;
+    const monthEl   = root.querySelector<HTMLElement>('.drp-month')!;
+    const hint      = root.querySelector<HTMLElement>('.drp-hint')!;
+    const apply     = root.querySelector<HTMLButtonElement>('.drp-apply')!;
+    const inFrom    = root.querySelector<HTMLInputElement>('input[name="from"]')!;
+    const inTo      = root.querySelector<HTMLInputElement>('input[name="to"]')!;
+    const outFrom   = root.querySelector<HTMLElement>('[data-out="from"]')!;
+    const outTo     = root.querySelector<HTMLElement>('[data-out="to"]')!;
+    const sumStart  = root.querySelector<HTMLElement>('.drp-sum[data-edge="start"]')!;
+    const sumEnd    = root.querySelector<HTMLElement>('.drp-sum[data-edge="end"]')!;
+    const presets   = root.querySelectorAll<HTMLButtonElement>('.drp-preset');
+    const todayISO  = root.dataset.today!;
+
+    let start: Date | null = parse(root.dataset.from);
+    let end:   Date | null = parse(root.dataset.to);
+    let picking: 'start' | 'end' = 'start';
+    let hover: Date | null = null;
+    let view = new Date(Date.UTC((start ?? new Date()).getUTCFullYear(), (start ?? new Date()).getUTCMonth(), 1));
+
+    function render() {
+      const month = monthFmt.format(view);
+      monthEl.textContent = month.charAt(0).toUpperCase() + month.slice(1);
+
+      // Primer lunes visible
+      const first  = new Date(view);
+      const offset = (first.getUTCDay() + 6) % 7;
+      const cursor = new Date(first.getTime() - offset * DAY);
+
+      // Fin efectivo para el resaltado (vista previa al pasar el ratón)
+      const previewEnd = picking === 'end' && start && hover && hover >= start ? hover : end;
+
+      const cells: HTMLButtonElement[] = [];
+      for (let i = 0; i < 42; i++) {
+        const d   = new Date(cursor.getTime() + i * DAY);
+        const key = iso(d);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'drp-day';
+        btn.dataset.date = key;
+        btn.setAttribute('aria-label', longFmt.format(d));
+
+        const isStart = !!start && key === iso(start);
+        const isEnd   = !!previewEnd && key === iso(previewEnd);
+        if (d.getUTCMonth() !== view.getUTCMonth()) btn.classList.add('is-outside');
+        if (key === todayISO) btn.classList.add('is-today');
+        if (isStart) btn.classList.add('is-start');
+        if (isEnd)   btn.classList.add('is-end');
+        if (start && previewEnd && previewEnd > start) {
+          btn.classList.add('has-start', 'has-end');
+          if (d > start && d < previewEnd) btn.classList.add('in-range');
+        }
+        btn.setAttribute('aria-pressed', String(isStart || isEnd));
+
+        const span = document.createElement('span');
+        span.textContent = String(d.getUTCDate());
+        btn.append(span);
+        cells.push(btn);
+      }
+      grid.replaceChildren(...cells);
+
+      // Resumen, campos y estado
+      outFrom.textContent = start ? dayFmt.format(start) : '—';
+      outTo.textContent   = end   ? dayFmt.format(end)   : '—';
+      sumStart.dataset.active = String(picking === 'start');
+      sumEnd.dataset.active   = String(picking === 'end');
+      inFrom.value = start ? iso(start) : '';
+      inTo.value   = end   ? iso(end)   : '';
+
+      const days = start && end ? Math.round((end.getTime() - start.getTime()) / DAY) + 1 : 0;
+      apply.disabled    = !days;
+      apply.textContent = days ? `Aplicar · ${days} ${days === 1 ? 'día' : 'días'}` : 'Aplicar';
+      hint.textContent  = picking === 'start' ? 'Toca la fecha de inicio' : 'Ahora toca la fecha de fin';
+
+      presets.forEach((p) => p.setAttribute('aria-pressed',
+        String(!!start && !!end && p.dataset.from === iso(start) && p.dataset.to === iso(end))));
+    }
+
+    function pick(d: Date) {
+      if (picking === 'start') {
+        start = d;
+        end = null;
+        picking = 'end';
+      } else if (start && d < start) {
+        // Si toca una fecha anterior al inicio, se convierte en el nuevo inicio
+        end = start;
+        start = d;
+        picking = 'start';
+      } else {
+        end = d;
+        picking = 'start';
+      }
+      hover = null;
+      render();
+    }
+
+    grid.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.drp-day');
+      if (!btn) return;
+      const d = parse(btn.dataset.date)!;
+      pick(d);
+      if (d.getUTCMonth() !== view.getUTCMonth() && picking === 'end') {
+        view = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+        render();
+      }
+      grid.querySelector<HTMLElement>(`[data-date="${iso(d)}"]`)?.focus();
+    });
+
+    // Vista previa del rango con el ratón
+    grid.addEventListener('mouseover', (e) => {
+      if (picking !== 'end') return;
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.drp-day');
+      const d = btn ? parse(btn.dataset.date) : null;
+      if (d && (!hover || iso(d) !== iso(hover))) { hover = d; render(); }
+    });
+    grid.addEventListener('mouseleave', () => { if (hover) { hover = null; render(); } });
+
+    // Teclado: flechas para moverse entre días
+    grid.addEventListener('keydown', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.drp-day');
+      const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+      if (!btn || !step) return;
+      e.preventDefault();
+      const d = new Date(parse(btn.dataset.date)!.getTime() + step * DAY);
+      if (d.getUTCMonth() !== view.getUTCMonth()) {
+        view = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+        render();
+      }
+      grid.querySelector<HTMLElement>(`[data-date="${iso(d)}"]`)?.focus();
+    });
+
+    root.querySelectorAll<HTMLButtonElement>('.drp-nav').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        view = new Date(Date.UTC(view.getUTCFullYear(), view.getUTCMonth() + Number(btn.dataset.nav), 1));
+        render();
+      }));
+
+    presets.forEach((p) => p.addEventListener('click', () => {
+      start = parse(p.dataset.from);
+      end   = parse(p.dataset.to);
+      picking = 'start';
+      view = new Date(Date.UTC(start!.getUTCFullYear(), start!.getUTCMonth(), 1));
+      render();
+    }));
+
+    sumStart.addEventListener('click', () => {
+      picking = 'start';
+      if (start) view = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+      render();
+    });
+    sumEnd.addEventListener('click', () => {
+      if (!start) return;
+      picking = 'end';
+      const ref = end ?? start;
+      view = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1));
+      render();
+    });
+
+    render();
+  });
+</script>

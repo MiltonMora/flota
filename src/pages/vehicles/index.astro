@@ -2,25 +2,40 @@
 import AppLayout from '@/layouts/AppLayout.astro';
 import VehicleModal from '@/components/VehicleModal.astro';
 import VehicleEditModal from '@/components/VehicleEditModal.astro';
+import ListSkeleton from '@/components/ListSkeleton.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import ErrorState from '@/components/ErrorState.astro';
 import { db } from '@/db';
-import { vehicles, userVehicles } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { vehicles, userVehicles, transactions } from '@/db/schema';
+import { eq, sql } from 'drizzle-orm';
 
 const user = Astro.locals.user;
-if (!user) return Astro.redirect('/');
 
-const list = await db
-  .select({
-    id:    vehicles.id,
-    plate: vehicles.plate,
-    brand: vehicles.brand,
-    model: vehicles.model,
-    year:  vehicles.year,
-    description: vehicles.description,
-  })
-  .from(userVehicles)
-  .innerJoin(vehicles, eq(userVehicles.vehicleId, vehicles.id))
-  .where(eq(userVehicles.userId, user.id));
+let loadError = false;
+let list: {
+  id: string; plate: string; brand: string; model: string;
+  year: number; description: string | null; txCount: number;
+}[] = [];
+
+try {
+  list = await db
+    .select({
+      id:          vehicles.id,
+      plate:       vehicles.plate,
+      brand:       vehicles.brand,
+      model:       vehicles.model,
+      year:        vehicles.year,
+      description: vehicles.description,
+      // Para avisar en la confirmación de borrado cuántos movimientos se pierden
+      txCount:     sql<number>`(SELECT COUNT(*) FROM ${transactions} WHERE ${transactions.vehicleId} = ${vehicles.id})`,
+    })
+    .from(userVehicles)
+    .innerJoin(vehicles, eq(userVehicles.vehicleId, vehicles.id))
+    .where(eq(userVehicles.userId, user.id));
+} catch (err) {
+  console.error('[vehicles] error cargando vehículos', err);
+  loadError = true;
+}
 ---
 
 <AppLayout title="Vehículos · Flota Vial">
@@ -33,16 +48,28 @@ const list = await db
 
     <div class="search-bar">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-        <circle cx="11" cy="11" r="7" stroke="#B4B2A9" stroke-width="1.8"/>
-        <path d="M16.5 16.5L21 21" stroke="#B4B2A9" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="11" cy="11" r="7" stroke="#6B6A63" stroke-width="1.8"/>
+        <path d="M16.5 16.5L21 21" stroke="#6B6A63" stroke-width="1.8" stroke-linecap="round"/>
       </svg>
-      <input id="search-input" type="text" placeholder="Buscar por matrícula o marca..." autocomplete="off" />
+      <label for="search-input" class="sr-only">Buscar vehículo</label>
+      <input id="search-input" type="search" placeholder="Buscar por matrícula o marca..." autocomplete="off" />
     </div>
 
-    <div class="list" id="vehicle-list">
-      {list.length === 0
-        ? <div class="empty">No tenés vehículos registrados.</div>
-        : list.map((v) => (
+    <ListSkeleton variant="vehicle" count={Math.min(Math.max(list.length, 3), 6)} />
+
+    <div class="list" id="vehicle-list" data-loading-hide>
+      {loadError ? (
+        <ErrorState title="No pudimos cargar tus vehículos" />
+      ) : list.length === 0 ? (
+        <EmptyState
+          icon="car"
+          title="Aún no tienes vehículos"
+          text="Añade tu primer vehículo para empezar a registrar sus ingresos y gastos."
+          actionLabel="Añadir vehículo"
+          actionId="empty-action"
+        />
+      ) : (
+        list.map((v) => (
             <div class="card vehicle-card" data-search={`${v.plate} ${v.brand} ${v.model}`.toLowerCase()}>
               <div>
                 <span class="badge-plate">{v.plate}</span>
@@ -57,16 +84,18 @@ const list = await db
                 data-model={v.model}
                 data-year={v.year}
                 data-description={v.description ?? ''}
-                aria-label="Editar vehículo"
+                data-tx-count={v.txCount}
+                aria-label={`Editar vehículo ${v.plate}`}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 </svg>
               </button>
             </div>
           ))
-      }
+      )}
+      <p id="no-results" class="no-results" hidden>Ningún vehículo coincide con la búsqueda.</p>
     </div>
 
   </div>
@@ -127,7 +156,7 @@ const list = await db
     background: transparent;
     width: 100%;
   }
-  .search-bar input::placeholder { color: #B4B2A9; }
+  .search-bar input::placeholder { color: #6B6A63; }
 
   .list {
     display: flex;
@@ -150,21 +179,10 @@ const list = await db
   .vehicle-year {
     font-family: var(--font-mono);
     font-size: 11px;
-    color: #888780;
+    color: #6B6A63;
     margin-top: 2px;
   }
 
-  .empty {
-    background: white;
-    border: 0.5px dashed #d1d5db;
-    border-radius: 10px;
-    padding: 1.5rem;
-    text-align: center;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: #B4B2A9;
-    letter-spacing: 0.04em;
-  }
 
   .fab {
     position: fixed;
@@ -187,8 +205,8 @@ const list = await db
   .fab-navy { background: var(--color-navy); }
 
   .edit-btn {
-  width: 32px; height: 32px;
-  border-radius: 8px;
+  width: 44px; height: 44px;
+  border-radius: 10px;
   background: var(--color-navy-light);
   color: var(--color-navy);
   border: none; cursor: pointer;
@@ -197,16 +215,26 @@ const list = await db
   transition: background 0.15s;
 }
 .edit-btn:hover { background: #cce0f5; }
+
+  .no-results {
+    font-family: var(--font-mono); font-size: 11px; color: var(--color-muted);
+    text-align: center; padding: 1.5rem 0; margin: 0;
+  }
+  .no-results[hidden] { display: none; }
 </style>
 
 <script>
   // Búsqueda en tiempo real
+  const noResults = document.getElementById('no-results')!;
   document.getElementById('search-input')?.addEventListener('input', (e) => {
     const q = (e.target as HTMLInputElement).value.toLowerCase().trim();
+    let visible = 0;
     document.querySelectorAll<HTMLElement>('.vehicle-card').forEach((card) => {
       const match = card.dataset.search?.includes(q) ?? true;
       card.classList.toggle('hidden', !match);
+      if (match) visible++;
     });
+    noResults.hidden = visible > 0 || !document.querySelector('.vehicle-card');
   });
 
   document.querySelectorAll('.edit-btn').forEach((btn) => {
@@ -220,13 +248,14 @@ const list = await db
           model:       d.model,
           year:        d.year,
           description: d.description,
+          txCount:     d.txCount,
         }
       }));
     });
   });
 
   // FAB abre modal
-  document.getElementById('fab-vehicle')?.addEventListener('click', () => {
-    document.dispatchEvent(new CustomEvent('open-vehicle-modal'));
-  });
+  const openCreate = () => document.dispatchEvent(new CustomEvent('open-vehicle-modal'));
+  document.getElementById('fab-vehicle')?.addEventListener('click', openCreate);
+  document.getElementById('empty-action')?.addEventListener('click', openCreate);
 </script>

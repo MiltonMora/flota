@@ -13,8 +13,9 @@
     "db:generate": "drizzle-kit generate --config=src/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=src/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=src/drizzle.config.ts",
-    "generate-types": "wrangler types",
-    "start": "node ./dist/server/entry.mjs"
+    "start": "node --env-file-if-exists=.env ./dist/server/entry.mjs",
+    "check": "astro check",
+    "dev:login": "node scripts/dev-login.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^10.1.0",
@@ -25,11 +26,12 @@
     "drizzle-orm": "^0.45.2",
     "nanoid": "^5.1.11",
     "tailwindcss": "^4.2.4",
-    "wrangler": "^4.90.0",
     "zod": "^4.4.2"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.10"
+    "@astrojs/check": "^0.9.12",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^6.0.3"
   },
   "overrides": {
     "vite": "^7"

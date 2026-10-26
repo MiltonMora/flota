@@ -6,15 +6,16 @@ const navItems = [
   { href: '/vehicles',         label: 'Vehículo', icon: 'car'     },
   { href: '/transactions/income',  label: 'Ingreso',  icon: 'income'  },
   { href: '/transactions/expense', label: 'Gasto',    icon: 'expense' },
+  { href: '/reports',              label: 'Informes', icon: 'reports' },
 ];
 
 const isActive = (href: string) =>
   currentPath === href || currentPath.startsWith(`${href}/`);
 ---
 
-<nav class="mobile-nav">
+<nav class="mobile-nav" aria-label="Principal">
   {navItems.map((item) => (
-    <a href={item.href} class={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
+    <a href={item.href} class={`nav-item ${isActive(item.href) ? 'active' : ''}`} aria-current={isActive(item.href) ? 'page' : undefined}>
 
       <span class={`nav-icon icon-${item.icon}`}>
         {item.icon === 'home' && (
@@ -35,6 +36,11 @@ const isActive = (href: string) =>
           <svg viewBox="0 0 24 24" fill="none">
             <path d="M12 19V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             <path d="M7 10l5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        )}
+        {item.icon === 'reports' && (
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
         )}
         {item.icon === 'expense' && (
@@ -61,9 +67,11 @@ const isActive = (href: string) =>
     max-width: 480px;
     background: rgba(255, 255, 255, 0.97);
     border-top: 1px solid #e5e7eb;
+    /* Una sola fila siempre: tantas columnas como elementos, todas iguales */
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding: 6px 2px calc(6px + env(safe-area-inset-bottom));
     z-index: 100;
   }
 
@@ -72,9 +80,12 @@ const isActive = (href: string) =>
     flex-direction: column;
     align-items: center;
     gap: 3px;
+    min-width: 0;
+    min-height: 44px;
+    justify-content: center;
     text-decoration: none;
-    color: #888780;
-    padding: 6px 4px;
+    color: #6B6A63;
+    padding: 6px 2px;
     border-radius: 8px;
     transition: color 0.15s;
   }
@@ -124,7 +135,11 @@ const isActive = (href: string) =>
     font-family: var(--font-mono);
     font-size: 9px;
     font-weight: 500;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     line-height: 1;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

@@ -2,116 +2,102 @@
 import VehicleModal from '@/components/VehicleModal.astro';
 import TransactionModal from '@/components/TransactionModal.astro';
 import AppLayout from '@/layouts/AppLayout.astro';
+import ListSkeleton from '@/components/ListSkeleton.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import ErrorState from '@/components/ErrorState.astro';
+import DateRangePicker from '@/components/DateRangePicker.astro';
 import { db } from '@/db';
 import { vehicles, transactions, userVehicles } from '@/db/schema';
-import { eq, desc, sql, and, gte, lte } from 'drizzle-orm';
+import { rangeFromParams, formatDay, currency } from '@/lib/dates';
+import { eq, desc, sql, and, gte, lte, inArray } from 'drizzle-orm';
 
 const user = Astro.locals.user;
-if (!user) return Astro.redirect('/');
 
 // ── Rango de fechas ──────────────────────────────────────────────────────────
-const url       = Astro.url;
-const now       = new Date();
-const fromParam = url.searchParams.get('from');
-const toParam   = url.searchParams.get('to');
-
-const from = fromParam
-  ? new Date(fromParam)
-  : new Date(now.getFullYear(), now.getMonth(), 1);
-
-const to = toParam
-  ? new Date(toParam)
-  : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-const fromISO = from.toISOString().split('T')[0];
-const toISO   = to.toISOString().split('T')[0];
+const { from, to, toEnd, fromISO, toISO } = rangeFromParams(Astro.url.searchParams);
 
 const periodLabel = (() => {
-  const sameMonth = from.getMonth()    === to.getMonth()
-                 && from.getFullYear() === to.getFullYear();
+  const sameMonth = from.getUTCMonth()    === to.getUTCMonth()
+                 && from.getUTCFullYear() === to.getUTCFullYear();
   if (sameMonth) {
-    return from.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+    return formatDay(from, { month: 'short', year: 'numeric' });
   }
-  const f = from.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-  const t = to.toLocaleDateString('es-ES',   { day: '2-digit', month: 'short', year: 'numeric' });
+  const f = formatDay(from, { day: '2-digit', month: 'short' });
+  const t = formatDay(to,   { day: '2-digit', month: 'short', year: 'numeric' });
   return `${f} — ${t}`;
 })();
 
-// ── Vehículos ────────────────────────────────────────────────────────────────
-const userVehicleList = await db
-  .select({
-    id:    vehicles.id,
-    plate: vehicles.plate,
-    brand: vehicles.brand,
-    model: vehicles.model,
-    year:  vehicles.year,
-  })
-  .from(userVehicles)
-  .innerJoin(vehicles, eq(userVehicles.vehicleId, vehicles.id))
-  .where(eq(userVehicles.userId, user.id));
-
-const vehicleIds = userVehicleList.map((v) => v.id);
-
-// ── Totales del período ──────────────────────────────────────────────────────
+let loadError = false;
+let userVehicleList: { id: string; plate: string; brand: string; model: string; year: number }[] = [];
 let incomeTotal  = 0;
 let expenseTotal = 0;
-let recentTransactions: any[] = [];
+let recentTransactions: {
+  id: string; amount: number; type: 'income' | 'expense';
+  description: string; date: Date; plate: string;
+}[] = [];
 
-if (vehicleIds.length > 0) {
-  const inList = sql.join(vehicleIds.map((id) => sql`${id}`), sql`, `);
-
-  const whereClause = and(
-    sql`${transactions.vehicleId} IN (${inList})`,
-    gte(transactions.date, from),
-    lte(transactions.date, to),
-  );
-
-  const [totals] = await db
+try {
+  // ── Vehículos ──────────────────────────────────────────────────────────────
+  userVehicleList = await db
     .select({
-      income:  sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income'  THEN ${transactions.amount} ELSE 0 END), 0)`,
-      expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`,
+      id:    vehicles.id,
+      plate: vehicles.plate,
+      brand: vehicles.brand,
+      model: vehicles.model,
+      year:  vehicles.year,
     })
-    .from(transactions)
-    .where(whereClause);
+    .from(userVehicles)
+    .innerJoin(vehicles, eq(userVehicles.vehicleId, vehicles.id))
+    .where(eq(userVehicles.userId, user.id));
 
-  incomeTotal  = totals?.income  ?? 0;
-  expenseTotal = totals?.expense ?? 0;
+  const vehicleIds = userVehicleList.map((v) => v.id);
 
-  recentTransactions = await db
-    .select({
-      id:          transactions.id,
-      amount:      transactions.amount,
-      type:        transactions.type,
-      description: transactions.description,
-      date:        transactions.date,
-      plate:       vehicles.plate,
-    })
-    .from(transactions)
-    .innerJoin(vehicles, eq(transactions.vehicleId, vehicles.id))
-    .where(whereClause)
-    .orderBy(desc(transactions.date))
-    .limit(8);
+  // ── Totales del período ────────────────────────────────────────────────────
+  if (vehicleIds.length > 0) {
+    const whereClause = and(
+      inArray(transactions.vehicleId, vehicleIds),
+      gte(transactions.date, from),
+      lte(transactions.date, toEnd),
+    );
+
+    const [totals] = await db
+      .select({
+        income:  sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income'  THEN ${transactions.amount} ELSE 0 END), 0)`,
+        expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.amount} ELSE 0 END), 0)`,
+      })
+      .from(transactions)
+      .where(whereClause);
+
+    incomeTotal  = totals?.income  ?? 0;
+    expenseTotal = totals?.expense ?? 0;
+
+    recentTransactions = await db
+      .select({
+        id:          transactions.id,
+        amount:      transactions.amount,
+        type:        transactions.type,
+        description: transactions.description,
+        date:        transactions.date,
+        plate:       vehicles.plate,
+      })
+      .from(transactions)
+      .innerJoin(vehicles, eq(transactions.vehicleId, vehicles.id))
+      .where(whereClause)
+      .orderBy(desc(transactions.date))
+      .limit(8);
+  }
+} catch (err) {
+  console.error('[dashboard] error cargando datos', err);
+  loadError = true;
 }
 
 const balance = incomeTotal - expenseTotal;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const currency = (v: number) =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 }).format(v);
-
-const formatDate = (d: Date | number) =>
-  new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' }).format(new Date(d));
+const formatDate = (d: Date | number) => formatDay(d);
 
 const initials = (name?: string | null) =>
   name?.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() ?? '?';
-
-// Mes anterior y año actual para los chips
-const prevMonthFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-const prevMonthTo   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString().split('T')[0];
-const yearFrom      = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-const yearTo        = new Date(now.getFullYear(), 11, 31, 23, 59, 59).toISOString().split('T')[0];
-const thisMonthFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString().split('T')[0];
 ---
 
 <AppLayout title="Dashboard · Flota Vial">
@@ -134,7 +120,7 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
       <div class="balance-top">
         <div>
           <p class="balance-label">balance</p>
-          <p class={`balance-value ${balance < 0 ? 'neg' : ''}`}>{currency(balance)}</p>
+          <p class={`balance-value ${balance < 0 ? 'neg' : ''}`} data-sk-text>{loadError ? '—' : currency(balance)}</p>
         </div>
         <button id="period-toggle" class="period-btn" aria-expanded="false">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -151,54 +137,37 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
       <div class="balance-row">
         <div>
           <p class="balance-row-label">ingresos</p>
-          <p class="balance-row-value income" id="total-income">+ {currency(incomeTotal)}</p>
+          <p class="balance-row-value income" id="total-income" data-sk-text>+ {currency(incomeTotal)}</p>
         </div>
         <div class="balance-divider"></div>
         <div>
           <p class="balance-row-label">gastos</p>
-          <p class="balance-row-value expense" id="total-expense">− {currency(expenseTotal)}</p>
+          <p class="balance-row-value expense" id="total-expense" data-sk-text>− {currency(expenseTotal)}</p>
         </div>
       </div>
     </div>
 
     <!-- Date picker -->
     <div id="period-modal-overlay" class="period-overlay" aria-hidden="true">
-      <div class="period-modal" role="dialog" aria-modal="true">
+      <div class="period-modal" role="dialog" aria-modal="true" aria-label="Elegir período">
 
         <div class="modal-handle"></div>
 
         <div class="modal-header">
           <div>
             <h2 class="modal-title">Período</h2>
-            <p class="modal-subtitle">seleccioná el rango a consultar</p>
+            <p class="modal-subtitle">toca la fecha de inicio y luego la de fin</p>
           </div>
-          <button id="period-modal-close" class="modal-close" aria-label="Cerrar">
+          <button id="period-modal-close" type="button" class="modal-close" aria-label="Cerrar">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
               <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
             </svg>
           </button>
         </div>
 
-        <div class="modal-body">
-          <div class="picker-chips">
-            <button class="chip" data-from={thisMonthFrom} data-to={thisMonthTo}>Este mes</button>
-            <button class="chip" data-from={prevMonthFrom} data-to={prevMonthTo}>Mes anterior</button>
-            <button class="chip" data-from={yearFrom}      data-to={yearTo}     >Este año</button>
-          </div>
-
-          <div class="picker-row">
-            <div class="picker-field">
-              <label class="picker-label">Desde</label>
-              <input id="picker-from" type="date" class="picker-input" value={fromISO} />
-            </div>
-            <div class="picker-field">
-              <label class="picker-label">Hasta</label>
-              <input id="picker-to" type="date" class="picker-input" value={toISO} />
-            </div>
-          </div>
-
-          <button id="picker-apply" class="picker-apply">Aplicar período</button>
-        </div>
+        <form method="GET" class="modal-body">
+          <DateRangePicker from={fromISO} to={toISO} tone="navy" />
+        </form>
 
       </div>
     </div>
@@ -230,13 +199,23 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
       </button>
     </div>
 
+    {loadError && <ErrorState title="No pudimos cargar el resumen" />}
+
     <!-- Vehículos -->
+    {!loadError && (
     <section class="section">
       <h2 class="section-title">Tus vehículos</h2>
+      <ListSkeleton variant="vehicle" count={Math.min(Math.max(userVehicleList.length, 1), 3)} />
       {userVehicleList.length === 0
-        ? <div class="empty-state">No tenés vehículos asociados.</div>
+        ? <EmptyState
+            icon="car"
+            title="Aún no tienes vehículos"
+            text="Añade tu primer vehículo para empezar a registrar ingresos y gastos."
+            actionLabel="Añadir vehículo"
+            actionId="empty-add-vehicle"
+          />
         : userVehicleList.map((v) => (
-            <a href="/vehicles" class="vehicle-card">
+            <a href="/vehicles" class="vehicle-card" data-loading-hide>
               <div>
                 <span class="badge-plate">{v.plate}</span>
                 <p class="vehicle-name">{v.brand} {v.model}</p>
@@ -249,17 +228,25 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
           ))
       }
     </section>
+    )}
 
     <!-- Movimientos recientes -->
+    {!loadError && userVehicleList.length > 0 && (
     <section class="section">
       <div class="section-header">
         <h2 class="section-title">Movimientos recientes</h2>
         <span class="section-period">{periodLabel}</span>
       </div>
+      <ListSkeleton count={Math.min(Math.max(recentTransactions.length, 2), 5)} />
       {recentTransactions.length === 0
-        ? <div class="empty-state">Sin movimientos en este período.</div>
+        ? <EmptyState
+            title={`Sin movimientos en ${periodLabel}`}
+            text="Registra un ingreso o un gasto para ver aquí tu actividad."
+            actionLabel="Registrar ingreso"
+            actionId="empty-add-income"
+          />
         : recentTransactions.map((tx) => (
-            <a href={`/transactions/${tx.type}`} class="tx-card">
+            <a href={`/transactions/${tx.type}`} class="tx-card" data-loading-hide>
               <div class="tx-left">
                 <p class="tx-desc">{tx.description}</p>
                 <div class="tx-meta">
@@ -274,6 +261,7 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
           ))
       }
     </section>
+    )}
 
   </div>
 
@@ -347,74 +335,6 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
   .balance-row-value.income  { color: #C0DD97; }
   .balance-row-value.expense { color: #F7C1C1; }
 
-  /* ── Date picker ── */
-  .date-picker {
-    background: white;
-    border-radius: 12px;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    border: 0.5px solid #e5e7eb;
-    animation: slideDown 0.2s ease;
-  }
-
-  @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .picker-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-
-  .chip {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    padding: 5px 12px;
-    border-radius: 99px;
-    border: 0.5px solid #e5e7eb;
-    background: #fafafa;
-    color: #888780;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.15s;
-  }
-  .chip:hover      { border-color: var(--color-navy); color: var(--color-navy); }
-  .chip.chip-active { background: var(--color-navy); color: white; border-color: var(--color-navy); }
-
-  .picker-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-
-  .picker-field { display: flex; flex-direction: column; gap: 4px; }
-
-  .picker-label { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.06em; text-transform: uppercase; }
-
-  .picker-input {
-    border: 0.5px solid #e5e7eb;
-    border-radius: 7px;
-    padding: 8px 10px;
-    font-family: var(--font-sans);
-    font-size: 13px;
-    color: var(--color-carbon);
-    background: #fafafa;
-    outline: none;
-    transition: border-color 0.15s;
-    width: 100%;
-  }
-  .picker-input:focus { border-color: var(--color-navy-mid); }
-
-  .picker-apply {
-    background: var(--color-navy);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px;
-    font-family: var(--font-sans);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .picker-apply:hover { background: var(--color-navy-mid); }
-
   /* ── Period modal ── */
   .period-overlay {
     position: fixed; inset: 0;
@@ -432,6 +352,9 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
     margin: 0 auto;
     border-radius: 24px 24px 0 0;
     padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    max-height: 92dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     transform: translateY(100%);
     transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   }
@@ -443,10 +366,10 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
 
   .modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-navy); line-height: 1; }
 
-  .modal-subtitle { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.06em; margin-top: 4px; }
+  .modal-subtitle { font-family: var(--font-mono); font-size: 9px; color: #6B6A63; letter-spacing: 0.06em; margin-top: 4px; }
 
   .modal-close {
-    width: 26px; height: 26px; border-radius: 50%;
+    width: 36px; height: 36px; border-radius: 50%;
     background: var(--color-navy-light); color: var(--color-navy);
     border: none; display: flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; margin-top: 2px;
@@ -456,39 +379,6 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
 
   .modal-body { padding: 16px 18px 0; display: flex; flex-direction: column; gap: 14px; }
 
-  .picker-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-
-  .chip {
-    font-family: var(--font-mono); font-size: 10px;
-    padding: 6px 14px; border-radius: 99px;
-    border: 0.5px solid #e5e7eb; background: #fafafa; color: #888780;
-    cursor: pointer; white-space: nowrap; transition: all 0.15s;
-  }
-  .chip:hover       { border-color: var(--color-navy); color: var(--color-navy); }
-  .chip.chip-active { background: var(--color-navy); color: white; border-color: var(--color-navy); }
-
-  .picker-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-  .picker-field { display: flex; flex-direction: column; gap: 4px; }
-
-  .picker-label { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.06em; text-transform: uppercase; }
-
-  .picker-input {
-    border: 0.5px solid #e5e7eb; border-radius: 8px;
-    padding: 9px 10px; font-family: var(--font-sans);
-    font-size: 13px; color: var(--color-carbon);
-    background: #fafafa; outline: none; width: 100%;
-    transition: border-color 0.15s;
-  }
-  .picker-input:focus { border-color: var(--color-navy-mid); }
-
-  .picker-apply {
-    background: var(--color-navy); color: white; border: none;
-    border-radius: 10px; padding: 13px;
-    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
-    cursor: pointer; transition: background 0.15s;
-  }
-  .picker-apply:hover { background: var(--color-navy-mid); }
 
   /* ── Acciones rápidas ── */
   .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -512,7 +402,7 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
 
   .section-title { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--color-navy); }
 
-  .section-period { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.04em; }
+  .section-period { font-family: var(--font-mono); font-size: 9px; color: #6B6A63; letter-spacing: 0.04em; }
 
   /* ── Vehicle card ── */
   .vehicle-card {
@@ -523,7 +413,7 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
   .vehicle-card:hover { opacity: 0.85; }
 
   .vehicle-name { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: var(--color-carbon); margin-top: 5px; }
-  .vehicle-year { font-family: var(--font-mono); font-size: 11px; color: #888780; margin-top: 2px; }
+  .vehicle-year { font-family: var(--font-mono); font-size: 11px; color: #6B6A63; margin-top: 2px; }
 
   /* ── Transaction card ── */
   .tx-card {
@@ -535,34 +425,29 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
 
   .tx-left { flex: 1; min-width: 0; }
   .tx-desc { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--color-carbon); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tx-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-family: var(--font-mono); font-size: 10px; color: #888780; }
+  .tx-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-family: var(--font-mono); font-size: 10px; color: #6B6A63; }
 
   .tx-amount { font-family: var(--font-mono); font-size: 13px; font-weight: 500; white-space: nowrap; margin-left: 12px; }
   .tx-amount.income  { color: var(--color-income); }
   .tx-amount.expense { color: var(--color-expense); }
 
   /* ── Empty state ── */
-  .empty-state {
-    background: white; border: 0.5px dashed #d1d5db; border-radius: 10px;
-    padding: 1.25rem; text-align: center;
-    font-family: var(--font-mono); font-size: 11px; color: #888780; letter-spacing: 0.04em;
-  }
 </style>
 
-<script define:vars={{ thisMonthFrom, thisMonthTo, prevMonthFrom, prevMonthTo, yearFrom, yearTo }}>
+<script>
   // ── Period modal ─────────────────────────────────────────────────────────
-  const periodOverlay = document.getElementById('period-modal-overlay');
-  const periodClose   = document.getElementById('period-modal-close');
-  const periodToggle  = document.getElementById('period-toggle');
-  const pickerFrom    = document.getElementById('picker-from');
-  const pickerTo      = document.getElementById('picker-to');
+  const periodOverlay = document.getElementById('period-modal-overlay')!;
+  const periodClose   = document.getElementById('period-modal-close')!;
+  const periodToggle  = document.getElementById('period-toggle')!;
 
   function openPeriodModal() {
+    periodToggle.setAttribute('aria-expanded', 'true');
     periodOverlay.classList.add('open');
     periodOverlay.setAttribute('aria-hidden', 'false');
   }
 
   function closePeriodModal() {
+    periodToggle.setAttribute('aria-expanded', 'false');
     periodOverlay.classList.remove('open');
     periodOverlay.setAttribute('aria-hidden', 'true');
   }
@@ -571,50 +456,17 @@ const thisMonthTo   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59,
   periodClose?.addEventListener('click', closePeriodModal);
   periodOverlay?.addEventListener('click', (e) => { if (e.target === periodOverlay) closePeriodModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePeriodModal(); });
-
-  // ── Chips ────────────────────────────────────────────────────────────────
-  document.querySelectorAll('.chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
-      document.querySelectorAll('.chip').forEach((c) => c.classList.remove('chip-active'));
-      chip.classList.add('chip-active');
-      pickerFrom.value = chip.dataset.from;
-      pickerTo.value   = chip.dataset.to;
-    });
-  });
-
-  // Marcar chip activo al cargar
-  document.querySelectorAll('.chip').forEach((chip) => {
-    if (chip.dataset.from === pickerFrom.value && chip.dataset.to === pickerTo.value) {
-      chip.classList.add('chip-active');
-    }
-  });
-
-  // Si el usuario edita las fechas manualmente, deseleccionar chips
-  [pickerFrom, pickerTo].forEach((input) => {
-    input?.addEventListener('change', () => {
-      document.querySelectorAll('.chip').forEach((c) => c.classList.remove('chip-active'));
-    });
-  });
-
-  // ── Apply ────────────────────────────────────────────────────────────────
-  document.getElementById('picker-apply')?.addEventListener('click', () => {
-    const from = pickerFrom.value;
-    const to   = pickerTo.value;
-    if (!from || !to) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('from', from);
-    url.searchParams.set('to',   to);
-    window.location.href = url.toString();
-  });
+  // Al aplicar, cerrar la hoja: la barra de carga y los skeletons toman el relevo
+  periodOverlay.querySelector('form')?.addEventListener('submit', closePeriodModal);
 
   // ── Action buttons ───────────────────────────────────────────────────────
-  document.getElementById('btn-new-vehicle')?.addEventListener('click', () => {
-    document.dispatchEvent(new CustomEvent('open-vehicle-modal'));
-  });
+  const openVehicle = () => document.dispatchEvent(new CustomEvent('open-vehicle-modal'));
+  const openIncome  = () => document.dispatchEvent(new CustomEvent('open-tx-modal', { detail: { type: 'income' } }));
 
-  document.getElementById('btn-new-income')?.addEventListener('click', () => {
-    document.dispatchEvent(new CustomEvent('open-tx-modal', { detail: { type: 'income' } }));
-  });
+  document.getElementById('btn-new-vehicle')?.addEventListener('click', openVehicle);
+  document.getElementById('empty-add-vehicle')?.addEventListener('click', openVehicle);
+  document.getElementById('btn-new-income')?.addEventListener('click', openIncome);
+  document.getElementById('empty-add-income')?.addEventListener('click', openIncome);
 
   document.getElementById('btn-new-expense')?.addEventListener('click', () => {
     document.dispatchEvent(new CustomEvent('open-tx-modal', { detail: { type: 'expense' } }));

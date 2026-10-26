@@ -1,5 +1,5 @@
 ---
-// Sin props, se controla desde el exterior con open/close
+// Sin props, se controla desde el exterior con el evento 'open-vehicle-modal'
 ---
 
 <div id="vehicle-modal-overlay" class="overlay" aria-hidden="true">
@@ -9,63 +9,58 @@
 
     <div class="modal-header">
       <h2 id="modal-title" class="modal-title">Nuevo vehículo</h2>
-      <button id="modal-close" class="modal-close" aria-label="Cerrar">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <path d="M18 6L6 18M6 6l12 12" stroke="#888780" stroke-width="2" stroke-linecap="round"/>
+      <button id="modal-close" type="button" class="modal-close" aria-label="Cerrar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M18 6L6 18M6 6l12 12" stroke="#6B6A63" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </button>
     </div>
 
-    <div id="modal-error" class="modal-error" style="display:none;"></div>
-
-    <div class="modal-body">
-      <div class="field">
-        <label for="v-plate">Matrícula</label>
-        <input id="v-plate" name="plate" type="text" maxlength="12"
-          class="input plate-input" placeholder="1234 ABC" autocomplete="off" required />
-      </div>
-
-      <div class="grid-2">
+    <form id="vehicle-form" novalidate>
+      <div class="modal-body">
         <div class="field">
-          <label for="v-brand">Marca</label>
-          <input id="v-brand" name="brand" type="text"
-            class="input" placeholder="Toyota" required />
+          <label for="v-plate">Matrícula *</label>
+          <input id="v-plate" name="plate" type="text" maxlength="12" autocapitalize="characters"
+            class="input plate-input" placeholder="ABC123" autocomplete="off" aria-describedby="v-plate-msg" />
+          <span id="v-plate-msg" class="field-msg"></span>
         </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="v-brand">Marca *</label>
+            <input id="v-brand" name="brand" type="text" maxlength="50"
+              class="input" placeholder="Toyota" aria-describedby="v-brand-msg" />
+            <span id="v-brand-msg" class="field-msg"></span>
+          </div>
+          <div class="field">
+            <label for="v-model">Modelo *</label>
+            <input id="v-model" name="model" type="text" maxlength="50"
+              class="input" placeholder="Corolla" aria-describedby="v-model-msg" />
+            <span id="v-model-msg" class="field-msg"></span>
+          </div>
+        </div>
+
         <div class="field">
-          <label for="v-model">Modelo</label>
-          <input id="v-model" name="model" type="text"
-            class="input" placeholder="Corolla" required />
+          <label for="v-year">Año *</label>
+          <input id="v-year" name="year" type="number" inputmode="numeric"
+            class="input" placeholder={String(new Date().getFullYear())}
+            min="1900" max={new Date().getFullYear() + 1} aria-describedby="v-year-msg" />
+          <span id="v-year-msg" class="field-msg"></span>
+        </div>
+
+        <div class="field">
+          <label for="v-description">Notas <span class="optional">opcional</span></label>
+          <textarea id="v-description" name="description" maxlength="300"
+            class="input textarea" rows="2"
+            placeholder="Color, uso, observaciones..."></textarea>
         </div>
       </div>
 
-      <div class="field">
-        <label for="v-year">Año</label>
-        <input id="v-year" name="year" type="number"
-          class="input" placeholder="2024"
-          min="1900" max={new Date().getFullYear() + 1} required />
+      <div class="modal-actions">
+        <button id="modal-cancel" type="button" class="btn-cancel">Cancelar</button>
+        <button id="modal-submit" type="submit" class="btn-save">Guardar</button>
       </div>
-
-      <div class="field">
-        <label for="v-description">Notas <span class="optional">opcional</span></label>
-        <textarea id="v-description" name="description"
-          class="input textarea" rows="2"
-          placeholder="Color, uso, observaciones..."></textarea>
-      </div>
-    </div>
-
-    <div class="modal-actions">
-      <button id="modal-cancel" class="btn-cancel">Cancelar</button>
-      <button id="modal-submit" class="btn-save">
-        <span id="submit-text">Guardar</span>
-        <span id="submit-loader" style="display:none;">
-          <svg class="spinner" width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          Guardando...
-        </span>
-      </button>
-    </div>
+    </form>
 
   </div>
 </div>
@@ -127,7 +122,7 @@
   }
 
   .modal-close {
-    width: 30px;
+    width: 36px;
     height: 30px;
     border-radius: 50%;
     background: #F5F4F0;
@@ -140,16 +135,6 @@
   }
   .modal-close:hover { background: #e5e7eb; }
 
-  .modal-error {
-    margin: 10px 18px 0;
-    background: var(--color-expense-light);
-    color: var(--color-expense);
-    font-family: var(--font-sans);
-    font-size: 12px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    line-height: 1.5;
-  }
 
   .modal-body {
     padding: 14px 18px;
@@ -173,7 +158,7 @@
   }
 
   .optional {
-    color: #B4B2A9;
+    color: #6B6A63;
     font-size: 9px;
     text-transform: none;
     letter-spacing: 0;
@@ -257,24 +242,18 @@
   .btn-save:hover   { background: var(--color-navy-mid); }
   .btn-save:disabled { opacity: 0.7; cursor: not-allowed; }
 
-  .spinner {
-    animation: spin 0.8s linear infinite;
-  }
 
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
+  .btn-cancel, .btn-save { min-height: 48px; }
 </style>
-
 <script>
-  const overlay  = document.getElementById('vehicle-modal-overlay')!;
+  import { api, toast, flashToast, setButtonState, setFieldError, reloadWithLoading, wait } from '@/scripts/ui';
+  import { bindVehicleForm } from '@/scripts/vehicle-form';
+
+  const overlay   = document.getElementById('vehicle-modal-overlay')!;
+  const form      = document.getElementById('vehicle-form') as HTMLFormElement;
   const btnClose  = document.getElementById('modal-close')!;
   const btnCancel = document.getElementById('modal-cancel')!;
   const btnSubmit = document.getElementById('modal-submit') as HTMLButtonElement;
-  const errorBox  = document.getElementById('modal-error')!;
-  const submitText   = document.getElementById('submit-text')!;
-  const submitLoader = document.getElementById('submit-loader')!;
 
   const inputs = {
     plate:       document.getElementById('v-plate')       as HTMLInputElement,
@@ -284,88 +263,55 @@
     description: document.getElementById('v-description') as HTMLTextAreaElement,
   };
 
-  // Escuchar el evento global para abrir
-  document.addEventListener('open-vehicle-modal', () => openModal());
+  const vf = bindVehicleForm(form, inputs);
+  let busy = false;
 
-  function openModal() {
+  document.addEventListener('open-vehicle-modal', () => {
+    setButtonState(btnSubmit, 'idle', 'Guardar');
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
     inputs.plate.focus();
-  }
+  });
 
   function closeModal() {
+    if (busy) return;
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
-    resetForm();
+    form.reset();
+    vf.reset();
   }
 
-  function resetForm() {
-    Object.values(inputs).forEach((el) => (el.value = ''));
-    showError('');
-  }
-
-  function showError(msg: string) {
-    errorBox.textContent = msg;
-    errorBox.style.display = msg ? 'block' : 'none';
-  }
-
-  function setLoading(on: boolean) {
-    btnSubmit.disabled  = on;
-    submitText.style.display   = on ? 'none'  : 'inline';
-    submitLoader.style.display = on ? 'flex'  : 'none';
-  }
-
-  // Cerrar
   btnClose.addEventListener('click', closeModal);
   btnCancel.addEventListener('click', closeModal);
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) closeModal();
-  });
-
-  // Cerrar con Escape
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal();
   });
 
-  // Submit
-  btnSubmit.addEventListener('click', async () => {
-    showError('');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy || !vf.validate()) return;
 
-    const data = {
-      plate:       inputs.plate.value.trim(),
-      brand:       inputs.brand.value.trim(),
-      model:       inputs.model.value.trim(),
-      year:        inputs.year.value,
-      description: inputs.description.value.trim(),
-    };
+    const data = vf.data();
+    busy = true;
+    setButtonState(btnSubmit, 'loading', 'Guardando…');
+    const res = await api('/api/vehicles/create', 'POST', data);
 
-    if (!data.plate || !data.brand || !data.model || !data.year) {
-      showError('Completá los campos obligatorios.');
+    if (!res.ok) {
+      busy = false;
+      setButtonState(btnSubmit, 'idle', 'Guardar');
+      if (res.status === 409) {
+        setFieldError(inputs.plate, 'Esa matrícula ya está registrada.');
+        inputs.plate.focus();
+      } else {
+        toast({ kind: 'error', title: res.offline ? 'Sin conexión' : 'No se pudo guardar', body: res.offline ? 'Inténtalo cuando vuelvas a tener red.' : res.error });
+      }
       return;
     }
 
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/vehicles/create', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(data),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        showError(json.error ?? 'Error al guardar.');
-        return;
-      }
-
-      closeModal();
-      window.location.reload();
-    } catch {
-      showError('Error de conexión. Intentá de nuevo.');
-    } finally {
-      setLoading(false);
-    }
+    setButtonState(btnSubmit, 'done', 'Guardado');
+    await wait(600);
+    flashToast({ kind: 'success', title: 'Vehículo añadido', body: `${data.plate.toUpperCase()} · ${data.brand} ${data.model}` });
+    reloadWithLoading();
   });
 </script>

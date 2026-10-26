@@ -1,52 +1,44 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/db';
 import { vehicles, userVehicles } from '@/db/schema';
-import { auth } from '@/lib/auth';
+import { json, readJson, isUniqueViolation } from '@/lib/api';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 
 const schema = z.object({
-  plate:       z.string().min(5).max(12),
-  brand:       z.string().min(2).max(50),
-  model:       z.string().min(1).max(50),
-  year:        z.coerce.number().min(1900).max(new Date().getFullYear() + 1),
-  description: z.string().max(300).optional(),
+  plate:       z.string().trim().min(5).max(12),
+  brand:       z.string().trim().min(2).max(50),
+  model:       z.string().trim().min(1).max(50),
+  year:        z.coerce.number().int().min(1900).max(new Date().getFullYear() + 1),
+  description: z.string().trim().max(300).optional(),
 });
 
-export const POST: APIRoute = async ({ request }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) {
-    return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
-  }
+export const POST: APIRoute = async ({ request, locals }) => {
+  const user   = locals.user;
+  const parsed = schema.safeParse(await readJson(request));
+  if (!parsed.success) return json({ error: 'Datos inválidos', issues: parsed.error.issues }, 400);
 
-  const body   = await request.json();
-  const parsed = schema.safeParse(body);
-
-  if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'Datos inválidos', issues: parsed.error.issues }), { status: 400 });
-  }
+  const vehicleId = nanoid();
 
   try {
-    const vehicleId = nanoid();
+    // Atómico: no queda un vehículo huérfano si falla la relación
+    await db.batch([
+      db.insert(vehicles).values({
+        id:          vehicleId,
+        plate:       parsed.data.plate.toUpperCase(),
+        brand:       parsed.data.brand,
+        model:       parsed.data.model,
+        year:        parsed.data.year,
+        description: parsed.data.description || null,
+        createdBy:   user.id,
+        updatedBy:   user.id,
+      }),
+      db.insert(userVehicles).values({ userId: user.id, vehicleId }),
+    ]);
 
-    await db.insert(vehicles).values({
-      id:          vehicleId,
-      plate:       parsed.data.plate.toUpperCase(),
-      brand:       parsed.data.brand,
-      model:       parsed.data.model,
-      year:        parsed.data.year,
-      description: parsed.data.description,
-      createdBy:   session.user.id,
-      updatedBy:   session.user.id,
-    });
-
-    await db.insert(userVehicles).values({
-      userId:    session.user.id,
-      vehicleId,
-    });
-
-    return new Response(JSON.stringify({ ok: true, vehicleId }), { status: 201 });
-  } catch {
-    return new Response(JSON.stringify({ error: 'La matrícula ya existe o hubo un error.' }), { status: 409 });
+    return json({ ok: true, vehicleId }, 201);
+  } catch (err) {
+    if (isUniqueViolation(err)) return json({ error: 'La matrícula ya existe.' }, 409);
+    return json({ error: 'Error al guardar.' }, 500);
   }
 };

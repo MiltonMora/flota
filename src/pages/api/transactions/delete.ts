@@ -1,26 +1,25 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/db';
-import { transactions, userVehicles } from '@/db/schema';
-import { auth } from '@/lib/auth';
-import { eq, and } from 'drizzle-orm';
+import { transactions } from '@/db/schema';
+import { json, readJson, ownsVehicle } from '@/lib/api';
+import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 
-export const DELETE: APIRoute = async ({ request }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
+const schema = z.object({ id: z.string().min(1) });
 
-  const { id } = await request.json();
-  if (!id) return new Response(JSON.stringify({ error: 'ID requerido' }), { status: 400 });
+export const DELETE: APIRoute = async ({ request, locals }) => {
+  const parsed = schema.safeParse(await readJson(request));
+  if (!parsed.success) return json({ error: 'ID requerido' }, 400);
 
-  const [tx] = await db.select().from(transactions).where(eq(transactions.id, id));
-  if (!tx) return new Response(JSON.stringify({ error: 'No encontrado' }), { status: 404 });
+  const [tx] = await db
+    .select({ vehicleId: transactions.vehicleId })
+    .from(transactions)
+    .where(eq(transactions.id, parsed.data.id))
+    .limit(1);
+  if (!tx) return json({ error: 'No encontrado' }, 404);
 
-  const [owned] = await db
-    .select()
-    .from(userVehicles)
-    .where(and(eq(userVehicles.userId, session.user.id), eq(userVehicles.vehicleId, tx.vehicleId)));
+  if (!(await ownsVehicle(locals.user.id, tx.vehicleId))) return json({ error: 'No autorizado' }, 403);
 
-  if (!owned) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 });
-
-  await db.delete(transactions).where(eq(transactions.id, id));
-  return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  await db.delete(transactions).where(eq(transactions.id, parsed.data.id));
+  return json({ ok: true });
 };

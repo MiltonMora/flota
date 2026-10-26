@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 // ─── TABLA INTERNA DE BETTER AUTH (no tocar) ─────────────────────────────────
@@ -94,7 +94,9 @@ export const userVehicles = sqliteTable('user_vehicles', {
   vehicleId: text('vehicle_id').notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
   createdAt: integer('created_at', { mode: 'timestamp' })
                .notNull().default(sql`(unixepoch())`),
-});
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.vehicleId] }),
+]);
 
 // ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
 export const transactions = sqliteTable('transactions', {
@@ -102,6 +104,8 @@ export const transactions = sqliteTable('transactions', {
   amount:      real('amount').notNull(),
   date:        integer('date', { mode: 'timestamp' }).notNull(),
   description: text('description').notNull(),
+  notes:       text('notes'),
+  category:    text('category'), // clave de src/lib/categories.ts (null = sin concepto)
   type:        text('type', { enum: ['income', 'expense'] }).notNull(),
   vehicleId:   text('vehicle_id').notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
   createdAt:   integer('created_at', { mode: 'timestamp' })
@@ -110,7 +114,10 @@ export const transactions = sqliteTable('transactions', {
                  .notNull().default(sql`(unixepoch())`),
   createdBy:   text('created_by').references(() => users.id),
   updatedBy:   text('updated_by').references(() => users.id),
-});
+}, (t) => [
+  index('transactions_vehicle_date_idx').on(t.vehicleId, t.date),
+  index('transactions_category_idx').on(t.category),
+]);
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 export type User        = typeof users.$inferSelect;

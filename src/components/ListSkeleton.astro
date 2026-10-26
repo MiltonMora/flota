@@ -1,0 +1,52 @@
+---
+// Placeholder animado que sustituye a una lista mientras la página carga.
+// Se muestra solo con <html class="is-loading"> (ver UiRoot.astro).
+interface Props {
+  count?:   number;
+  variant?: 'tx' | 'vehicle';
+}
+const { count = 4, variant = 'tx' } = Astro.props;
+const widths = ['70%', '55%', '80%', '60%', '65%', '50%'];
+---
+
+<div class="skeleton-list" aria-hidden="true">
+  {Array.from({ length: count }, (_, i) => (
+    variant === 'tx' ? (
+      <div class="sk-card">
+        <div class="sk-left">
+          <div class="sk" style={`height: 13px; width: ${widths[i % widths.length]}`}></div>
+          <div class="sk-meta">
+            <div class="sk" style="height: 14px; width: 58px"></div>
+            <div class="sk" style="height: 14px; width: 40px"></div>
+          </div>
+        </div>
+        <div class="sk" style="height: 14px; width: 82px"></div>
+      </div>
+    ) : (
+      <div class="sk-card">
+        <div class="sk-left">
+          <div class="sk" style="height: 18px; width: 72px"></div>
+          <div class="sk" style={`height: 14px; width: ${widths[i % widths.length]}`}></div>
+          <div class="sk" style="height: 11px; width: 36px"></div>
+        </div>
+        <div class="sk" style="height: 44px; width: 44px; border-radius: 10px"></div>
+      </div>
+    )
+  ))}
+</div>
+
+<style>
+  .skeleton-list { flex-direction: column; gap: 8px; }
+  .sk-card {
+    background: white;
+    border-radius: 10px;
+    padding: 14px;
+    border: 0.5px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .sk-left { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .sk-meta { display: flex; gap: 6px; }
+</style>

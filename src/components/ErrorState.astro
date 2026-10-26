@@ -1,0 +1,69 @@
+---
+// Estado de error de carga con botón de reintento.
+interface Props {
+  title?: string;
+  text?:  string;
+}
+const {
+  title = 'No pudimos cargar los datos',
+  text  = 'El servidor no respondió. Tus datos están a salvo.',
+} = Astro.props;
+---
+
+<div class="error-state" role="alert" data-loading-hide>
+  <div class="error-icon" aria-hidden="true">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 7.5v5.5M12 16.5h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <h2 class="error-title">{title}</h2>
+  <p class="error-text">{text}</p>
+  <button type="button" class="error-retry" data-retry>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Reintentar
+  </button>
+</div>
+
+<style>
+  .error-state {
+    background: white;
+    border: 0.5px solid #f1cfcf;
+    border-radius: 14px;
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .error-icon {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: var(--color-expense-light); color: var(--color-expense);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .error-title { font-family: var(--font-sans); font-size: 17px; font-weight: 600; color: var(--color-carbon); margin: 0; }
+  .error-text  { font-family: var(--font-sans); font-size: 14px; line-height: 1.45; color: var(--color-muted-strong); margin: 0; }
+  .error-retry {
+    margin-top: 4px;
+    min-height: 48px; padding: 0 20px;
+    border-radius: 10px; border: 1.5px solid var(--color-navy);
+    background: white; color: var(--color-navy);
+    font-family: var(--font-sans); font-size: 15px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  import { setButtonState, reloadWithLoading } from '@/scripts/ui';
+
+  document.querySelectorAll<HTMLButtonElement>('[data-retry]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setButtonState(btn, 'loading', 'Reintentando…');
+      reloadWithLoading();
+    });
+  });
+</script>

@@ -3,10 +3,14 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
 import { users } from '@/db/schema';
+import {
+  BETTER_AUTH_URL, BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+} from 'astro:env/server';
 
 export const auth = betterAuth({
-  baseURL:        import.meta.env.BETTER_AUTH_URL,
-  trustedOrigins: [import.meta.env.BETTER_AUTH_URL],
+  baseURL:        BETTER_AUTH_URL,
+  secret:         BETTER_AUTH_SECRET,
+  trustedOrigins: [BETTER_AUTH_URL],
 
   database: drizzleAdapter(db, {
     provider: 'sqlite',
@@ -18,12 +22,10 @@ export const auth = betterAuth({
     },
   }),
 
-  socialProviders: {
-    google: {
-      clientId:     import.meta.env.GOOGLE_CLIENT_ID,
-      clientSecret: import.meta.env.GOOGLE_CLIENT_SECRET,
-    },
-  },
+  // Google solo se activa si hay credenciales (en local se puede usar npm run dev:login)
+  socialProviders: GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+    ? { google: { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET } }
+    : {},
 
   session: {
     expiresIn: 60 * 60 * 24 * 7,

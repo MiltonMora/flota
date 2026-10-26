@@ -1,5 +1,6 @@
 ---
 import Nav from '@/components/Nav.astro';
+import UiRoot from '@/components/UiRoot.astro';
 
 interface Props {
   title?: string;
@@ -18,6 +19,7 @@ const { title = 'Flota Vial' } = Astro.props;
     </style>
   </head>
   <body>
+    <UiRoot />
     <main class="app-container">
       <slot />
     </main>

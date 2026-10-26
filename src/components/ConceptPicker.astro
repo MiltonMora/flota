@@ -1,0 +1,84 @@
+---
+// Campo de concepto con búsqueda (combobox). Al escribir, filtra los conceptos
+// registrados del tipo actual y los ofrece en un desplegable. La lógica
+// (coincidencias, reseteo) está en src/scripts/concept-picker.ts.
+import { CATEGORIES } from '@/lib/categories';
+
+interface Props {
+  /** prefijo de ids, p. ej. "tx" → #tx-concept, #tx-concept-input */
+  prefix: string;
+}
+const { prefix } = Astro.props;
+const id = `${prefix}-concept`;
+---
+
+<div id={id} class="field cb">
+  <label for={`${id}-input`}>Concepto *</label>
+  <div class="cb-wrap">
+    <input
+      id={`${id}-input`}
+      type="text"
+      class="field-input cb-input"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-expanded="false"
+      aria-controls={`${id}-list`}
+      aria-describedby={`${id}-msg`}
+      autocomplete="off"
+      autocapitalize="sentences"
+      spellcheck="false"
+      maxlength="60"
+      placeholder="Escribe para buscar…"
+    />
+    <svg class="cb-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <ul id={`${id}-list`} class="cb-list" role="listbox" aria-label="Conceptos" hidden></ul>
+  </div>
+  <span id={`${id}-msg`} class="field-msg"></span>
+  <script type="application/json" data-concepts set:html={JSON.stringify(CATEGORIES)}></script>
+</div>
+
+<style is:global>
+  /* Mismo aspecto que los demás campos de los modales */
+  .cb { padding: 11px 0; border-bottom: 0.5px solid #f3f3f3; }
+  .cb > label {
+    display: block; margin-bottom: 5px;
+    font-family: var(--font-mono); font-size: 9px; color: var(--color-muted);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .cb.has-error > label { color: var(--color-expense); }
+  .cb-wrap { position: relative; }
+  .cb-input {
+    width: 100%; padding: 0 22px 0 0; border: none; outline: none; background: transparent;
+    font-family: var(--font-sans); font-size: 14px; color: var(--color-carbon);
+  }
+  .cb-input::placeholder { color: #A8A69E; }
+  .cb-chevron {
+    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    color: var(--color-muted); pointer-events: none; transition: transform 0.15s;
+  }
+  .cb-input[aria-expanded="true"] ~ .cb-chevron { transform: translateY(-50%) rotate(180deg); }
+
+  .cb-list {
+    position: absolute; z-index: 20; left: -6px; right: -6px; top: calc(100% + 6px);
+    margin: 0; padding: 4px; list-style: none;
+    background: white; border: 0.5px solid #d6d4cc; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    max-height: 232px; overflow-y: auto; overscroll-behavior: contain;
+  }
+  .cb-list[hidden] { display: none; }
+  .cb-option {
+    display: flex; align-items: center; min-height: 44px; padding: 0 10px;
+    border-radius: 8px; cursor: pointer;
+    font-family: var(--font-sans); font-size: 14px; color: var(--color-carbon);
+  }
+  .cb-option mark { background: none; color: inherit; font-weight: 700; }
+  .cb-option[aria-selected="true"] { background: var(--color-navy-light); color: var(--color-navy); }
+  .cb-option.is-chosen::after {
+    content: ''; margin-left: auto; width: 14px; height: 8px;
+    border-left: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg) translate(2px, -2px);
+  }
+  .cb-empty { padding: 12px 10px; font-family: var(--font-sans); font-size: 13px; color: var(--color-muted-strong); }
+</style>

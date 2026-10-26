@@ -15,6 +15,20 @@
       "when": 1777902016316,
       "tag": "0001_aromatic_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793008700322,
+      "tag": "0002_slippery_pretty_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793022280466,
+      "tag": "0003_lame_firelord",
+      "breakpoints": true
     }
   ]
 }

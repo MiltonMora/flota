@@ -1,0 +1,689 @@
+---
+import AppLayout from '@/layouts/AppLayout.astro';
+import DateRangePicker from '@/components/DateRangePicker.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import ErrorState from '@/components/ErrorState.astro';
+import {
+  parseReportFilters, filtersQuery, buildReport, userVehicleOptions, conceptOptions,
+  type Report, type VehicleOption,
+} from '@/lib/reports';
+import { categoryLabel, NO_CATEGORY } from '@/lib/categories';
+import { formatDay, currency } from '@/lib/dates';
+
+const user    = Astro.locals.user;
+const filters = parseReportFilters(Astro.url.searchParams);
+
+let vehicleOptions: VehicleOption[] = [];
+let report: Report | null = null;
+try {
+  vehicleOptions = await userVehicleOptions(user.id);
+  report = await buildReport(filters, vehicleOptions);
+} catch (err) {
+  console.error('[reports] error generando informe', err);
+}
+
+// ── Presentación ─────────────────────────────────────────────────────────────
+const sameMonth = filters.from.getUTCMonth() === filters.to.getUTCMonth()
+               && filters.from.getUTCFullYear() === filters.to.getUTCFullYear();
+const monthName = formatDay(filters.from, { month: 'long', year: 'numeric' });
+const periodLabel = sameMonth && filters.from.getUTCDate() === 1
+  ? monthName.charAt(0).toUpperCase() + monthName.slice(1)
+  : `${formatDay(filters.from, { day: 'numeric', month: 'short' })} – ${formatDay(filters.to, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
+const pct = (v: number) => (v > 0 && v < 0.005 ? '<1%' : `${Math.round(v * 100)}%`);
+const signed = (v: number) => `${v >= 0 ? '+' : '−'}${currency(Math.abs(v))}`;
+
+/** Variación frente al período anterior; `upIsGood` decide si subir es bueno */
+function delta(current: number, previous: number, upIsGood: boolean) {
+  if (previous === 0 && current === 0) return null;
+  if (previous === 0) return { text: 'nuevo', tone: 'neutral', dir: 'up' as const };
+  const change = (current - previous) / Math.abs(previous);
+  const dir    = change >= 0 ? 'up' as const : 'down' as const;
+  const good   = (dir === 'up') === upIsGood;
+  return {
+    text: `${change >= 0 ? '+' : '−'}${Math.abs(Math.round(change * 100))}%`,
+    tone: Math.abs(change) < 0.005 ? 'neutral' : good ? 'good' : 'bad',
+    dir,
+  };
+}
+
+const t = report?.totals;
+const p = report?.previous;
+const margin     = t && t.income > 0 ? t.balance / t.income : null;
+const prevMargin = p && p.income > 0 ? p.balance / p.income : null;
+
+const kpis = t && p ? {
+  balance: delta(t.balance, p.balance, true),
+  income:  delta(t.income,  p.income,  true),
+  expense: delta(t.expense, p.expense, false),
+} : null;
+
+const vehicleLabel = filters.vehicleId
+  ? vehicleOptions.find((v) => v.id === filters.vehicleId)?.plate ?? 'Vehículo'
+  : null;
+const conceptLabel = filters.concept
+  ? (filters.concept === 'none' ? NO_CATEGORY : categoryLabel(filters.concept))
+  : null;
+
+const maxVehicleAbs = Math.max(1, ...(report?.byVehicle ?? []).map((v) => Math.abs(v.balance)));
+const shownMovements = report?.movements.slice(0, 50) ?? [];
+const exportHref = `/api/reports/export${filtersQuery(filters)}`;
+
+const granularityLabel = { day: 'por día', week: 'por semana', month: 'por mes' }[report?.granularity ?? 'day'];
+const chartData = report ? JSON.stringify({ series: report.series, granularity: report.granularity, type: filters.type }) : '{}';
+const hasData = (report?.totals.count ?? 0) > 0;
+---
+
+<AppLayout title="Informes · Flota Vial">
+  <div class="page">
+
+    <header class="page-header">
+      <div>
+        <p class="kicker">análisis</p>
+        <h1 class="title">Informes</h1>
+      </div>
+      <a href={exportHref} class="export-btn" download aria-label="Exportar movimientos a CSV">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 4v11M7 10l5 5 5-5M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        CSV
+      </a>
+    </header>
+
+    <!-- ── Filtros (una fila, por encima de todo) ── -->
+    <form method="GET" class="filters" id="filters">
+      <input type="hidden" name="from" value={filters.fromISO} />
+      <input type="hidden" name="to"   value={filters.toISO} />
+      {filters.concept && <input type="hidden" name="concept" value={filters.concept} />}
+
+      <button type="button" id="period-open" class="filter-btn period" aria-haspopup="dialog">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span class="period-text">{periodLabel}</span>
+      </button>
+
+      <label class="sr-only" for="f-vehicle">Vehículo</label>
+      <select id="f-vehicle" name="vehicle" class="filter-select" data-autosubmit>
+        <option value="">Todos los vehículos</option>
+        {vehicleOptions.map((v) => (
+          <option value={v.id} selected={v.id === filters.vehicleId}>{v.plate} · {v.brand} {v.model}</option>
+        ))}
+      </select>
+
+      <div class="segmented" role="radiogroup" aria-label="Tipo de movimiento">
+        {[['', 'Todo'], ['income', 'Ingresos'], ['expense', 'Gastos']].map(([value, label]) => (
+          <label class="seg">
+            <input type="radio" name="type" value={value} checked={(filters.type ?? '') === value} data-autosubmit />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+    </form>
+
+    {(vehicleLabel || conceptLabel) && (
+      <div class="active-filters">
+        {vehicleLabel && (
+          <a href={filtersQuery(filters, { vehicle: null })} class="active-chip" aria-label={`Quitar filtro de vehículo ${vehicleLabel}`}>
+            {vehicleLabel}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </a>
+        )}
+        {conceptLabel && (
+          <a href={filtersQuery(filters, { concept: null })} class="active-chip" aria-label={`Quitar filtro de concepto ${conceptLabel}`}>
+            {conceptLabel}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </a>
+        )}
+      </div>
+    )}
+
+    {!report ? (
+      <ErrorState title="No pudimos generar el informe" />
+    ) : vehicleOptions.length === 0 ? (
+      <EmptyState icon="car" title="Aún no tienes vehículos" text="Añade un vehículo y registra movimientos para ver informes." linkLabel="Ir a vehículos" linkHref="/vehicles" />
+    ) : (
+    <div class="report-body">
+
+      <!-- ── Cifras principales ── -->
+      <section class="kpis" aria-label="Resumen del período">
+        <div class="kpi hero">
+          <p class="kpi-label">Balance</p>
+          <p class={`kpi-hero ${t!.balance < 0 ? 'neg' : ''}`} data-sk-text>{signed(t!.balance)}</p>
+          {kpis?.balance && (
+            <p class={`delta ${kpis.balance.tone}`}>
+              <span aria-hidden="true">{kpis.balance.dir === 'up' ? '▲' : '▼'}</span>
+              {kpis.balance.text} <span class="delta-ref">vs período anterior ({signed(p!.balance)})</span>
+            </p>
+          )}
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi">
+            <p class="kpi-label"><span class="key key-income" aria-hidden="true"></span>Ingresos</p>
+            <p class="kpi-value" data-sk-text>{currency(t!.income)}</p>
+            {kpis?.income && <p class={`delta ${kpis.income.tone}`}><span aria-hidden="true">{kpis.income.dir === 'up' ? '▲' : '▼'}</span>{kpis.income.text}</p>}
+          </div>
+          <div class="kpi">
+            <p class="kpi-label"><span class="key key-expense" aria-hidden="true"></span>Gastos</p>
+            <p class="kpi-value" data-sk-text>{currency(t!.expense)}</p>
+            {kpis?.expense && <p class={`delta ${kpis.expense.tone}`}><span aria-hidden="true">{kpis.expense.dir === 'up' ? '▲' : '▼'}</span>{kpis.expense.text}</p>}
+          </div>
+          <div class="kpi">
+            <p class="kpi-label">Margen</p>
+            <p class="kpi-value" data-sk-text>{margin === null ? '—' : pct(margin)}</p>
+            <p class="delta neutral">{prevMargin === null ? 'sin ingresos antes' : `antes ${pct(prevMargin)}`}</p>
+          </div>
+          <div class="kpi">
+            <p class="kpi-label">Movimientos</p>
+            <p class="kpi-value" data-sk-text>{t!.count}</p>
+            <p class="delta neutral">antes {p!.count}</p>
+          </div>
+        </div>
+      </section>
+
+      {!hasData ? (
+        <EmptyState
+          title={`Sin movimientos en ${periodLabel}`}
+          text="Prueba con otro período o quita algún filtro."
+          linkLabel="Ver este mes completo"
+          linkHref="/reports"
+        />
+      ) : (
+      <>
+      <!-- ── Evolución ── -->
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title">Ingresos y gastos <span class="card-sub">{granularityLabel}</span></h2>
+          {!filters.type && (
+            <div class="legend" aria-hidden="true">
+              <span><i class="swatch key-income"></i>Ingresos</span>
+              <span><i class="swatch key-expense"></i>Gastos</span>
+            </div>
+          )}
+        </div>
+        <div id="evo-chart" class="chart" role="img" aria-label={`Gráfico de ingresos y gastos ${granularityLabel}. Los valores están en la tabla.`}></div>
+        <div id="evo-tooltip" class="tooltip" hidden></div>
+        <script type="application/json" id="evo-data" set:html={chartData}></script>
+        <details class="table-view">
+          <summary>Ver como tabla</summary>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th scope="col">Período</th><th scope="col">Ingresos</th><th scope="col">Gastos</th><th scope="col">Neto</th></tr></thead>
+              <tbody>
+                {report.series.map((b) => (
+                  <tr>
+                    <th scope="row">{b.from === b.to ? formatDay(new Date(`${b.from}T00:00:00Z`)) : `${formatDay(new Date(`${b.from}T00:00:00Z`))} – ${formatDay(new Date(`${b.to}T00:00:00Z`))}`}</th>
+                    <td>{currency(b.income)}</td>
+                    <td>{currency(b.expense)}</td>
+                    <td>{signed(b.income - b.expense)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- ── Por concepto ── -->
+      {(['expense', 'income'] as const).filter((type) => report!.byConcept[type].length > 0).map((type) => (
+        <section class="card">
+          <div class="card-head">
+            <h2 class="card-title">{type === 'expense' ? 'Gastos' : 'Ingresos'} por concepto</h2>
+            <span class="card-sub">{currency(type === 'expense' ? t!.expense : t!.income)}</span>
+          </div>
+          <ul class="bars" role="list">
+            {report!.byConcept[type].map((c) => (
+              <li>
+                <a class="bar-row" href={filtersQuery(filters, { concept: filters.concept === c.key ? null : c.key, type })}
+                   aria-label={`${c.label}: ${currency(c.amount)}, ${pct(c.share)} del total, ${c.count} movimientos. Filtrar por este concepto.`}>
+                  <span class="bar-label">{c.label}</span>
+                  <span class="bar-value">{currency(c.amount)} <span class="bar-share">{pct(c.share)}</span></span>
+                  <span class="bar-track" aria-hidden="true">
+                    <span class={`bar-fill fill-${type}`} style={`width: ${Math.max(c.share * 100, 1.5)}%`}></span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+
+      <!-- ── Por vehículo ── -->
+      {report.byVehicle.length > 0 && (
+        <section class="card">
+          <div class="card-head">
+            <h2 class="card-title">Rentabilidad por vehículo</h2>
+            <span class="card-sub">balance</span>
+          </div>
+          <ul class="vehicles" role="list">
+            {report.byVehicle.map((v) => (
+              <li class="vrow">
+                <div class="vrow-top">
+                  <a href={filtersQuery(filters, { vehicle: filters.vehicleId === v.id ? null : v.id })} class="vrow-name">
+                    <span class="badge-plate">{v.plate}</span>
+                    <span class="vrow-model">{v.name}</span>
+                  </a>
+                  <span class={`vrow-balance ${v.balance < 0 ? 'neg' : ''}`}>{signed(v.balance)}</span>
+                </div>
+                <div class="diverge" aria-hidden="true">
+                  <span class="diverge-mid"></span>
+                  <span class={`diverge-bar ${v.balance < 0 ? 'neg' : 'pos'}`}
+                        style={`width: ${(Math.abs(v.balance) / maxVehicleAbs) * 50}%`}></span>
+                </div>
+                <p class="vrow-meta">
+                  <span>Ingresos {currency(v.income)}</span>
+                  <span>Gastos {currency(v.expense)}</span>
+                  <span>Margen {v.margin === null ? '—' : pct(v.margin)}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <!-- ── Datos clave ── -->
+      <section class="card">
+        <h2 class="card-title">Datos clave</h2>
+        <dl class="insights">
+          <div><dt>Ingreso medio diario</dt><dd>{currency(report.insights.avgDailyIncome)}</dd></div>
+          <div><dt>Gasto medio diario</dt><dd>{currency(report.insights.avgDailyExpense)}</dd></div>
+          {report.insights.topConcept && (
+            <div><dt>Principal concepto de gasto</dt><dd>{report.insights.topConcept.label} · {pct(report.insights.topConcept.share)}</dd></div>
+          )}
+          {report.insights.topExpense && (
+            <div><dt>Mayor gasto</dt><dd>{report.insights.topExpense.description} · {currency(report.insights.topExpense.amount)} <span class="muted">({report.insights.topExpense.plate}, {formatDay(report.insights.topExpense.date)})</span></dd></div>
+          )}
+          {report.insights.topIncome && (
+            <div><dt>Mayor ingreso</dt><dd>{report.insights.topIncome.description} · {currency(report.insights.topIncome.amount)} <span class="muted">({report.insights.topIncome.plate}, {formatDay(report.insights.topIncome.date)})</span></dd></div>
+          )}
+          {report.insights.best && (
+            <div><dt>Vehículo más rentable</dt><dd>{report.insights.best.plate} · {signed(report.insights.best.balance)}</dd></div>
+          )}
+          {report.insights.worst && (
+            <div><dt>Vehículo menos rentable</dt><dd>{report.insights.worst.plate} · {signed(report.insights.worst.balance)}</dd></div>
+          )}
+        </dl>
+      </section>
+
+      <!-- ── Movimientos (ingresos y gastos juntos) ── -->
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title">Movimientos</h2>
+          <span class="card-sub">{report.movements.length} en total</span>
+        </div>
+        <ul class="moves" role="list">
+          {shownMovements.map((m) => (
+            <li class="move">
+              <span class={`move-dot dot-${m.type}`} aria-hidden="true"></span>
+              <div class="move-main">
+                <p class="move-desc">{m.description}</p>
+                <p class="move-meta">
+                  <span>{formatDay(m.date)}</span>
+                  <span class="badge-plate">{m.plate}</span>
+                  {categoryLabel(m.category) !== m.description && <span>{categoryLabel(m.category)}</span>}
+                </p>
+              </div>
+              <p class="move-amount">
+                <span class="sr-only">{m.type === 'income' ? 'Ingreso' : 'Gasto'}</span>
+                {m.type === 'income' ? '+' : '−'}{currency(m.amount)}
+              </p>
+            </li>
+          ))}
+        </ul>
+        {report.movements.length > shownMovements.length && (
+          <p class="moves-more">Se muestran los 50 más recientes. <a href={exportHref} download>Descarga el CSV</a> para verlos todos.</p>
+        )}
+      </section>
+      </>
+      )}
+    </div>
+    )}
+  </div>
+
+  <!-- ── Hoja de período ── -->
+  <div id="period-overlay" class="sheet-overlay" aria-hidden="true">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="period-title">
+      <div class="sheet-head">
+        <h2 id="period-title" class="sheet-title">Período</h2>
+        <button type="button" id="period-close" class="sheet-close" aria-label="Cerrar">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <form method="GET" id="period-form">
+        {filters.vehicleId && <input type="hidden" name="vehicle" value={filters.vehicleId} />}
+        {filters.type && <input type="hidden" name="type" value={filters.type} />}
+        {filters.concept && <input type="hidden" name="concept" value={filters.concept} />}
+        <DateRangePicker from={filters.fromISO} to={filters.toISO} tone="navy" />
+      </form>
+    </div>
+  </div>
+</AppLayout>
+
+<style>
+  .page {
+    padding: 1.25rem 1.25rem calc(6rem + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 1rem;
+    min-height: 100dvh; background: var(--color-asphalt);
+  }
+  .page-header { display: flex; justify-content: space-between; align-items: flex-end; }
+  .kicker { font-family: var(--font-mono); font-size: 11px; color: var(--color-navy-mid); letter-spacing: 0.05em; margin-bottom: 2px; }
+  .title  { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--color-navy); line-height: 1; }
+  .export-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px;
+    border-radius: 10px; border: 1.5px solid var(--color-navy); color: var(--color-navy);
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500; text-decoration: none; background: white;
+  }
+
+  /* Filtros */
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filter-btn, .filter-select {
+    min-height: 40px; border-radius: 10px; border: 0.5px solid #d6d4cc; background: white;
+    font-family: var(--font-sans); font-size: 13px; color: var(--color-carbon); padding: 0 12px;
+  }
+  .filter-btn { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .period-text { font-weight: 600; }
+  .filter-select { flex: 1; min-width: 140px; }
+  .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; background: #ECEAE4; padding: 3px; border-radius: 10px; width: 100%; }
+  .seg { position: relative; }
+  .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .seg span {
+    display: flex; align-items: center; justify-content: center; min-height: 36px; border-radius: 8px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--color-muted-strong);
+  }
+  .seg input:checked + span { background: white; color: var(--color-carbon); font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .seg input:focus-visible + span { box-shadow: 0 0 0 3px rgba(42, 95, 165, 0.3); }
+
+  .active-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .active-chip {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px;
+    border-radius: 99px; background: var(--color-navy); color: white; text-decoration: none;
+    font-family: var(--font-mono); font-size: 11px;
+  }
+
+  .report-body { display: flex; flex-direction: column; gap: 1rem; transition: opacity 0.2s; }
+  :global(.is-loading) .report-body { opacity: 0.5; }
+
+  /* KPIs */
+  .kpis { display: flex; flex-direction: column; gap: 8px; }
+  .kpi { background: white; border-radius: 12px; border: 0.5px solid #e5e7eb; padding: 12px 14px; }
+  .kpi.hero { padding: 16px; }
+  .kpi-label { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 4px; }
+  .kpi-hero  { font-family: var(--font-sans); font-size: 2.6rem; font-weight: 600; line-height: 1.05; color: var(--color-carbon); margin: 0; }
+  .kpi-hero.neg { color: var(--color-expense); }
+  .kpi-value { font-family: var(--font-sans); font-size: 1.25rem; font-weight: 600; color: var(--color-carbon); margin: 0; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .delta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 4px 0 0; font-family: var(--font-mono); font-size: 11px; }
+  .delta.good    { color: var(--color-income); }
+  .delta.bad     { color: var(--color-expense); }
+  .delta.neutral { color: var(--color-muted); }
+  .delta-ref { color: var(--color-muted); }
+
+  .key { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .key-income  { background: var(--chart-income); }
+  .key-expense { background: var(--chart-expense); }
+
+  /* Tarjetas */
+  .card { background: white; border-radius: 12px; border: 0.5px solid #e5e7eb; padding: 14px; display: flex; flex-direction: column; gap: 12px; position: relative; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .card-title { font-family: var(--font-sans); font-size: 15px; font-weight: 600; color: var(--color-carbon); margin: 0; }
+  .card-sub { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--color-muted); }
+  .legend { display: flex; gap: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--color-muted-strong); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .chart { width: 100%; min-height: 220px; }
+
+  .table-view summary { font-family: var(--font-mono); font-size: 11px; color: var(--color-navy); cursor: pointer; padding: 6px 0; }
+  .table-scroll { overflow-x: auto; max-height: 280px; overflow-y: auto; }
+  .table-view table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .table-view th, .table-view td { padding: 6px 4px; text-align: right; border-bottom: 1px solid #f0efea; white-space: nowrap; }
+  .table-view th[scope="row"], .table-view thead th:first-child { text-align: left; font-weight: 500; }
+  .table-view thead th { font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); font-weight: 400; }
+
+  /* Barras por concepto */
+  .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .bar-row {
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 6px 4px; border-radius: 8px;
+    text-decoration: none; color: inherit;
+  }
+  .bar-row:hover, .bar-row:focus-visible { background: var(--color-asphalt); outline: none; }
+  .bar-label { font-size: 13px; font-weight: 500; color: var(--color-carbon); }
+  .bar-value { font-family: var(--font-mono); font-size: 12px; color: var(--color-carbon); text-align: right; }
+  .bar-share { color: var(--color-muted); }
+  .bar-track { grid-column: 1 / -1; height: 10px; background: #F2F1EC; border-radius: 4px; overflow: hidden; }
+  .bar-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+  .fill-income  { background: var(--chart-income); }
+  .fill-expense { background: var(--chart-expense); }
+
+  /* Vehículos */
+  .vehicles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .vrow-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .vrow-name { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; min-width: 0; min-height: 32px; }
+  .vrow-model { font-size: 13px; font-weight: 500; color: var(--color-carbon); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vrow-balance { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--color-carbon); white-space: nowrap; }
+  .vrow-balance.neg { color: var(--color-expense); }
+  .diverge { position: relative; height: 10px; background: #F2F1EC; border-radius: 4px; margin: 6px 0 4px; }
+  .diverge-mid { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: #A8A69E; }
+  .diverge-bar { position: absolute; top: 0; bottom: 0; }
+  .diverge-bar.pos { left: 50%; background: var(--chart-income); border-radius: 0 4px 4px 0; }
+  .diverge-bar.neg { right: 50%; background: var(--chart-expense); border-radius: 4px 0 0 4px; }
+  .vrow-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
+
+  /* Datos clave */
+  .insights { margin: 0; display: flex; flex-direction: column; }
+  .insights div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f0efea; }
+  .insights div:last-child { border-bottom: none; }
+  .insights dt { font-size: 13px; color: var(--color-muted-strong); }
+  .insights dd { margin: 0; font-size: 13px; font-weight: 600; text-align: right; }
+  .muted { color: var(--color-muted); font-weight: 400; }
+
+  /* Movimientos */
+  .moves { list-style: none; margin: 0; padding: 0; }
+  .move { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0efea; }
+  .move:last-child { border-bottom: none; }
+  .move-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-income  { background: var(--chart-income); }
+  .dot-expense { background: var(--chart-expense); }
+  .move-main { flex: 1; min-width: 0; }
+  .move-desc { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .move-meta { margin: 3px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
+  .move-amount { margin: 0; font-family: var(--font-mono); font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--color-carbon); }
+  .moves-more { margin: 0; font-size: 12px; color: var(--color-muted-strong); }
+  .moves-more a { color: var(--color-navy); }
+
+  /* Hoja de período */
+  .sheet-overlay {
+    position: fixed; inset: 0; z-index: 250; display: flex; align-items: flex-end;
+    background: rgba(20, 22, 28, 0.45); opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .sheet-overlay.open { opacity: 1; pointer-events: all; }
+  .sheet {
+    width: 100%; max-width: 480px; margin: 0 auto; background: white; border-radius: 18px 18px 0 0;
+    padding: 16px 18px calc(18px + env(safe-area-inset-bottom));
+    max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain;
+    transform: translateY(100%); transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .sheet-overlay.open .sheet { transform: none; }
+  .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .sheet-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-navy); margin: 0; }
+  .sheet-close {
+    width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--color-navy-light); color: var(--color-navy);
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+
+<style is:global>
+  /* Colores de gráfico validados para daltonismo (azul/rojo, ΔE CVD ≥ 19) */
+  :root { --chart-income: #2A5FA5; --chart-expense: #A32D2D; --chart-grid: #EDECE7; }
+
+  .chart svg { display: block; overflow: visible; }
+  .chart .axis-text { font-family: var(--font-mono); font-size: 10px; fill: var(--color-muted); }
+  .chart .hit { fill: transparent; cursor: pointer; outline: none; }
+  .chart .hit:hover, .chart .hit:focus-visible { fill: rgba(28, 63, 110, 0.06); }
+  .tooltip {
+    position: absolute; z-index: 5; pointer-events: none; min-width: 150px;
+    background: white; border: 0.5px solid #d6d4cc; border-radius: 10px; padding: 8px 10px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12); font-family: var(--font-sans);
+  }
+  .tooltip[hidden] { display: none; }
+  .tt-title { margin: 0 0 6px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
+  .tt-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--color-muted-strong); }
+  .tt-row strong { margin-left: auto; color: var(--color-carbon); font-variant-numeric: tabular-nums; }
+  .tt-key { width: 12px; height: 2px; border-radius: 1px; }
+  .tt-net { border-top: 1px solid #f0efea; margin-top: 4px; padding-top: 4px; }
+</style>
+
+<script>
+  // ── Hoja de período ──
+  const overlay = document.getElementById('period-overlay')!;
+  const openBtn = document.getElementById('period-open')!;
+  const open  = () => { overlay.classList.add('open'); overlay.setAttribute('aria-hidden', 'false'); };
+  const close = () => { overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true'); openBtn.focus(); };
+  openBtn.addEventListener('click', open);
+  document.getElementById('period-close')!.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) close(); });
+  document.getElementById('period-form')!.addEventListener('submit', () => overlay.classList.remove('open'));
+
+  // ── Filtros que se aplican al cambiar ──
+  const filters = document.getElementById('filters') as HTMLFormElement;
+  filters.querySelectorAll('[data-autosubmit]').forEach((el) =>
+    el.addEventListener('change', () => {
+      // Un concepto es de ingresos o de gastos: al cambiar el tipo se quita
+      if ((el as HTMLInputElement).name === 'type') filters.querySelector('input[name="concept"]')?.remove();
+      filters.requestSubmit();
+    }));
+
+  // ── Gráfico de columnas agrupadas (ingresos / gastos) ──
+  type Bucket = { label: string; from: string; to: string; income: number; expense: number };
+  const host    = document.getElementById('evo-chart');
+  const tooltip = document.getElementById('evo-tooltip');
+  const raw     = document.getElementById('evo-data')?.textContent;
+
+  if (host && tooltip && raw) {
+    const { series, type } = JSON.parse(raw) as { series: Bucket[]; type: 'income' | 'expense' | null };
+    const keys = (type ? [type] : ['income', 'expense']) as ('income' | 'expense')[];
+    const color = { income: 'var(--chart-income)', expense: 'var(--chart-expense)' };
+    const name  = { income: 'Ingresos', expense: 'Gastos' };
+
+    const money   = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+    const compact = new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 });
+    const dayFmt  = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const fmtDay  = (iso: string) => dayFmt.format(new Date(`${iso}T00:00:00Z`));
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag: string, attrs: Record<string, string | number>) => {
+      const n = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+      return n;
+    };
+
+    // Escala "bonita": 4 divisiones con paso redondo
+    const niceMax = (v: number) => {
+      if (v <= 0) return 1;
+      const raw  = v / 4;
+      const mag  = 10 ** Math.floor(Math.log10(raw));
+      const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw)!;
+      return step * 4;
+    };
+
+    // Columna con extremo de datos redondeado (4px) y base recta
+    const columnPath = (x: number, y: number, w: number, h: number) => {
+      const r = Math.min(4, w / 2, h);
+      return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+    };
+
+    function render() {
+      const width  = host!.clientWidth;
+      const height = 220;
+      const m = { top: 8, right: 4, bottom: 24, left: 44 };
+      const iw = width - m.left - m.right;
+      const ih = height - m.top - m.bottom;
+      const max = niceMax(Math.max(...series.flatMap((b) => keys.map((k) => b[k]))));
+      const y = (v: number) => m.top + ih - (v / max) * ih;
+
+      const svg = el('svg', { width, height, viewBox: `0 0 ${width} ${height}`, 'aria-hidden': 'true' });
+
+      // Rejilla y eje Y (recesivos)
+      for (let i = 0; i <= 4; i++) {
+        const v = (max / 4) * i;
+        svg.append(el('line', { x1: m.left, x2: width - m.right, y1: y(v), y2: y(v), stroke: 'var(--chart-grid)', 'stroke-width': 1 }));
+        const label = el('text', { x: m.left - 6, y: y(v) + 3, 'text-anchor': 'end', class: 'axis-text' });
+        label.textContent = v === 0 ? '0' : compact.format(v);
+        svg.append(label);
+      }
+
+      const band  = iw / series.length;
+      const gap   = 2;
+      const barW  = Math.max(2, Math.min(24, (band * 0.7 - gap * (keys.length - 1)) / keys.length));
+      const groupW = barW * keys.length + gap * (keys.length - 1);
+      const labelEvery = Math.ceil(series.length / Math.max(1, Math.floor(iw / 36)));
+
+      series.forEach((b, i) => {
+        const x0 = m.left + band * i + (band - groupW) / 2;
+        keys.forEach((k, j) => {
+          const h = (b[k] / max) * ih;
+          if (h > 0) svg.append(el('path', { d: columnPath(x0 + j * (barW + gap), y(b[k]), barW, h), fill: color[k] }));
+        });
+        if (i % labelEvery === 0) {
+          const t = el('text', { x: m.left + band * i + band / 2, y: height - 6, 'text-anchor': 'middle', class: 'axis-text' });
+          t.textContent = b.label;
+          svg.append(t);
+        }
+        // Área de interacción: toda la banda (más grande que la marca)
+        const hit = el('rect', { x: m.left + band * i, y: m.top, width: band, height: ih, class: 'hit', tabindex: 0 });
+        hit.dataset.index = String(i);
+        svg.append(hit);
+      });
+
+      host!.replaceChildren(svg);
+    }
+
+    function showTooltip(i: number, anchor: Element) {
+      const b = series[i];
+      tooltip!.replaceChildren();
+      const title = document.createElement('p');
+      title.className = 'tt-title';
+      title.textContent = b.from === b.to ? fmtDay(b.from) : `${fmtDay(b.from)} – ${fmtDay(b.to)}`;
+      tooltip!.append(title);
+
+      const row = (label: string, value: string, key?: string, extra = '') => {
+        const r = document.createElement('div');
+        r.className = `tt-row ${extra}`;
+        if (key) { const k = document.createElement('span'); k.className = 'tt-key'; k.style.background = key; r.append(k); }
+        const l = document.createElement('span'); l.textContent = label;
+        const v = document.createElement('strong'); v.textContent = value;
+        r.append(l, v);
+        tooltip!.append(r);
+      };
+      keys.forEach((k) => row(name[k], money.format(b[k]), color[k]));
+      if (keys.length === 2) {
+        const net = b.income - b.expense;
+        row('Neto', `${net >= 0 ? '+' : '−'}${money.format(Math.abs(net))}`, undefined, 'tt-net');
+      }
+
+      tooltip!.hidden = false;
+      const card = host!.parentElement!.getBoundingClientRect();
+      const r    = anchor.getBoundingClientRect();
+      const left = Math.min(Math.max(r.left + r.width / 2 - card.left - tooltip!.offsetWidth / 2, 4), card.width - tooltip!.offsetWidth - 4);
+      tooltip!.style.left = `${left}px`;
+      tooltip!.style.top  = `${host!.offsetTop + 8}px`;
+    }
+
+    host.addEventListener('pointerover', (e) => {
+      const hit = (e.target as Element).closest('.hit') as SVGElement | null;
+      if (hit) showTooltip(Number(hit.dataset.index), hit);
+    });
+    host.addEventListener('focusin', (e) => {
+      const hit = (e.target as Element).closest('.hit') as SVGElement | null;
+      if (hit) showTooltip(Number(hit.dataset.index), hit);
+    });
+    host.addEventListener('pointerleave', () => { tooltip.hidden = true; });
+    host.addEventListener('focusout', () => { tooltip.hidden = true; });
+
+    render();
+    new ResizeObserver(() => render()).observe(host);
+  }
+</script>

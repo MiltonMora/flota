@@ -1,44 +1,65 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/db';
-import { transactions, userVehicles } from '@/db/schema';
-import { auth } from '@/lib/auth';
-import { eq, and } from 'drizzle-orm';
+import { transactions } from '@/db/schema';
+import { json, readJson, ownsVehicle } from '@/lib/api';
+import { parseISODay } from '@/lib/dates';
+import { isValidCategory, categoryLabel } from '@/lib/categories';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 const schema = z.object({
   id:          z.string().min(1),
   amount:      z.coerce.number().positive(),
-  description: z.string().min(1).max(200),
+  // Opcional: los formularios ya no la piden y se usa el nombre del concepto
+  description: z.string().trim().max(200).optional(),
   vehicleId:   z.string().min(1),
   date:        z.string(),
-  notes:       z.string().max(300).optional(),
+  notes:       z.string().trim().max(300).optional(),
+  category:    z.string().max(40).optional(),
 });
 
-export const PUT: APIRoute = async ({ request }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
+export const PUT: APIRoute = async ({ request, locals }) => {
+  const user   = locals.user;
+  const parsed = schema.safeParse(await readJson(request));
+  if (!parsed.success) return json({ error: 'Datos inválidos' }, 400);
 
-  const body   = await request.json();
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) return new Response(JSON.stringify({ error: 'Datos inválidos' }), { status: 400 });
+  const date = parseISODay(parsed.data.date);
+  if (!date) return json({ error: 'Fecha inválida' }, 400);
 
-  const [owned] = await db
-    .select()
-    .from(userVehicles)
-    .where(and(eq(userVehicles.userId, session.user.id), eq(userVehicles.vehicleId, parsed.data.vehicleId)));
+  const [tx] = await db
+    .select({ vehicleId: transactions.vehicleId, type: transactions.type })
+    .from(transactions)
+    .where(eq(transactions.id, parsed.data.id))
+    .limit(1);
+  if (!tx) return json({ error: 'No encontrado' }, 404);
 
-  if (!owned) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 });
+  // El movimiento debe pertenecer a un vehículo del usuario, y el vehículo
+  // destino (si se reasigna) también.
+  if (!(await ownsVehicle(user.id, tx.vehicleId))) return json({ error: 'No autorizado' }, 403);
+  if (parsed.data.vehicleId !== tx.vehicleId && !(await ownsVehicle(user.id, parsed.data.vehicleId))) {
+    return json({ error: 'Vehículo no autorizado' }, 403);
+  }
+
+  const category = parsed.data.category || null;
+  if (category && !isValidCategory(tx.type, category)) {
+    return json({ error: 'Concepto inválido' }, 400);
+  }
+
+  const description = parsed.data.description || (category ? categoryLabel(category) : '');
+  if (!description) return json({ error: 'Indica un concepto' }, 400);
 
   await db.update(transactions)
     .set({
       amount:      parsed.data.amount,
-      description: parsed.data.description,
-      //vehicleId:   parsed.data.vehicleId,
-      date:        new Date(parsed.data.date),
-      updatedBy:   session.user.id,
+      description,
+      notes:       parsed.data.notes || null,
+      category,
+      vehicleId:   parsed.data.vehicleId,
+      date,
+      updatedBy:   user.id,
       updatedAt:   new Date(),
     })
     .where(eq(transactions.id, parsed.data.id));
 
-  return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  return json({ ok: true });
 };

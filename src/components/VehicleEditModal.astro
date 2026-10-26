@@ -1,66 +1,62 @@
----
----
 <div id="vehicle-edit-overlay" class="overlay" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="vedit-title">
     <div class="modal-handle"></div>
 
     <div class="modal-header">
       <div>
-        <h2 class="modal-title">Editar vehículo</h2>
-        <p class="modal-subtitle">modificá los datos de la unidad</p>
+        <h2 id="vedit-title" class="modal-title">Editar vehículo</h2>
+        <p class="modal-subtitle">modifica los datos de la unidad</p>
       </div>
-      <button id="vedit-close" class="modal-close" aria-label="Cerrar">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+      <button id="vedit-close" type="button" class="modal-close" aria-label="Cerrar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
       </button>
     </div>
 
-    <div id="vedit-error" class="modal-error" style="display:none;"></div>
+    <form id="vedit-form" novalidate>
+      <div class="modal-body">
+        <input type="hidden" id="vedit-id" />
+        <input type="hidden" id="vedit-count" />
 
-    <div class="modal-body">
-      <input type="hidden" id="vedit-id" />
-
-      <div class="field">
-        <label for="vedit-plate">Matrícula</label>
-        <input id="vedit-plate" type="text" maxlength="12" class="field-input plate-input" autocomplete="off" />
-      </div>
-
-      <div class="grid-2">
         <div class="field">
-          <label for="vedit-brand">Marca</label>
-          <input id="vedit-brand" type="text" class="field-input" />
+          <label for="vedit-plate">Matrícula *</label>
+          <input id="vedit-plate" type="text" maxlength="12" autocapitalize="characters"
+            class="field-input plate-input" autocomplete="off" aria-describedby="vedit-plate-msg" />
+          <span id="vedit-plate-msg" class="field-msg"></span>
         </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="vedit-brand">Marca *</label>
+            <input id="vedit-brand" type="text" maxlength="50" class="field-input" aria-describedby="vedit-brand-msg" />
+            <span id="vedit-brand-msg" class="field-msg"></span>
+          </div>
+          <div class="field">
+            <label for="vedit-model">Modelo *</label>
+            <input id="vedit-model" type="text" maxlength="50" class="field-input" aria-describedby="vedit-model-msg" />
+            <span id="vedit-model-msg" class="field-msg"></span>
+          </div>
+        </div>
+
         <div class="field">
-          <label for="vedit-model">Modelo</label>
-          <input id="vedit-model" type="text" class="field-input" />
+          <label for="vedit-year">Año *</label>
+          <input id="vedit-year" type="number" inputmode="numeric" class="field-input"
+            min="1900" max={new Date().getFullYear() + 1} aria-describedby="vedit-year-msg" />
+          <span id="vedit-year-msg" class="field-msg"></span>
+        </div>
+
+        <div class="field no-border">
+          <label for="vedit-description">Notas <span class="optional">· opcional</span></label>
+          <input id="vedit-description" type="text" maxlength="300" class="field-input" />
         </div>
       </div>
 
-      <div class="field">
-        <label for="vedit-year">Año</label>
-        <input id="vedit-year" type="number" class="field-input" min="1900" max={new Date().getFullYear() + 1} />
+      <div class="modal-actions">
+        <button id="vedit-delete" type="button" class="btn-delete">Eliminar</button>
+        <button id="vedit-submit" type="submit" class="btn-save">Guardar</button>
       </div>
-
-      <div class="field no-border">
-        <label for="vedit-description">Notas <span class="optional">· opcional</span></label>
-        <input id="vedit-description" type="text" maxlength="300" class="field-input" />
-      </div>
-    </div>
-
-    <div class="modal-actions">
-      <button id="vedit-delete" class="btn-delete">Eliminar</button>
-      <button id="vedit-submit" class="btn-save">
-        <span id="vedit-text">Guardar</span>
-        <span id="vedit-loader" style="display:none; align-items:center; gap:6px;">
-          <svg class="spinner" width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-            <path d="M8 2a6 6 0 0 1 6 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          Guardando...
-        </span>
-      </button>
-    </div>
+    </form>
   </div>
 </div>
 
@@ -90,10 +86,10 @@
   .modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 18px 0; }
 
   .modal-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-navy); line-height: 1; }
-  .modal-subtitle { font-family: var(--font-mono); font-size: 9px; color: #B4B2A9; letter-spacing: 0.06em; margin-top: 4px; }
+  .modal-subtitle { font-family: var(--font-mono); font-size: 9px; color: #6B6A63; letter-spacing: 0.06em; margin-top: 4px; }
 
   .modal-close {
-    width: 26px; height: 26px; border-radius: 50%;
+    width: 36px; height: 36px; border-radius: 50%;
     background: var(--color-navy-light); border: none;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; color: var(--color-navy);
@@ -102,12 +98,6 @@
   }
   .modal-close:hover { background: #cce0f5; }
 
-  .modal-error {
-    margin: 10px 18px 0;
-    background: var(--color-expense-light); color: var(--color-expense);
-    font-family: var(--font-sans); font-size: 12px;
-    padding: 10px 12px; border-radius: 8px; line-height: 1.5;
-  }
 
   .modal-body { padding: 4px 18px 0; display: flex; flex-direction: column; }
 
@@ -115,10 +105,10 @@
   .field.no-border { border-bottom: none; }
 
   .field label {
-    font-family: var(--font-mono); font-size: 9px; color: #B4B2A9;
+    font-family: var(--font-mono); font-size: 9px; color: #6B6A63;
     letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 5px;
   }
-  .optional { color: #d1d5db; font-size: 9px; text-transform: none; letter-spacing: 0; }
+  .optional { color: var(--color-muted); font-size: 9px; text-transform: none; letter-spacing: 0; }
 
   .field-input {
     border: none; outline: none;
@@ -155,21 +145,24 @@
   .btn-save:hover { background: var(--color-navy-mid); }
   .btn-save:disabled { opacity: 0.65; cursor: not-allowed; }
 
-  .spinner { animation: spin 0.8s linear infinite; }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-</style>
 
+  .btn-delete, .btn-save { min-height: 48px; }
+</style>
 <script>
-  const overlay  = document.getElementById('vehicle-edit-overlay')!;
+  import {
+    api, toast, flashToast, setButtonState, setFieldError, confirmSheet, reloadWithLoading, wait,
+  } from '@/scripts/ui';
+  import { bindVehicleForm } from '@/scripts/vehicle-form';
+
+  const overlay   = document.getElementById('vehicle-edit-overlay')!;
+  const form      = document.getElementById('vedit-form') as HTMLFormElement;
   const btnClose  = document.getElementById('vedit-close')!;
   const btnDelete = document.getElementById('vedit-delete') as HTMLButtonElement;
   const btnSubmit = document.getElementById('vedit-submit') as HTMLButtonElement;
-  const errorBox  = document.getElementById('vedit-error')!;
-  const submitText   = document.getElementById('vedit-text')!;
-  const submitLoader = document.getElementById('vedit-loader')!;
 
   const fields = {
     id:          document.getElementById('vedit-id')          as HTMLInputElement,
+    count:       document.getElementById('vedit-count')       as HTMLInputElement,
     plate:       document.getElementById('vedit-plate')       as HTMLInputElement,
     brand:       document.getElementById('vedit-brand')       as HTMLInputElement,
     model:       document.getElementById('vedit-model')       as HTMLInputElement,
@@ -177,81 +170,96 @@
     description: document.getElementById('vedit-description') as HTMLInputElement,
   };
 
+  const vf = bindVehicleForm(form, fields);
+  let busy = false;
+  let originalPlate = '';
+
   document.addEventListener('open-vehicle-edit', (e: Event) => {
-    const data = (e as CustomEvent).detail;
-    fields.id.value          = data.id;
-    fields.plate.value       = data.plate;
-    fields.brand.value       = data.brand;
-    fields.model.value       = data.model;
-    fields.year.value        = data.year;
-    fields.description.value = data.description ?? '';
-    showError('');
+    const d = (e as CustomEvent).detail;
+    fields.id.value          = d.id;
+    fields.count.value       = d.txCount ?? '0';
+    fields.plate.value       = d.plate;
+    fields.brand.value       = d.brand;
+    fields.model.value       = d.model;
+    fields.year.value        = d.year;
+    fields.description.value = d.description ?? '';
+    originalPlate            = d.plate;
+
+    vf.reset();
+    setButtonState(btnSubmit, 'idle', 'Guardar');
+    btnDelete.disabled = false;
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
+    fields.plate.focus();
   });
 
   function closeModal() {
+    if (busy) return;
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
   }
 
-  function showError(msg: string) {
-    errorBox.textContent   = msg;
-    errorBox.style.display = msg ? 'block' : 'none';
-  }
-
-  function setLoading(on: boolean) {
-    btnSubmit.disabled           = on;
-    submitText.style.display     = on ? 'none'  : 'inline';
-    submitLoader.style.display   = on ? 'flex'  : 'none';
-  }
-
   btnClose.addEventListener('click', closeModal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
-
-  btnDelete.addEventListener('click', async () => {
-    if (!confirm('¿Eliminar este vehículo? Se borrarán todas sus transacciones.')) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/vehicles/delete', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: fields.id.value }),
-      });
-      if (!res.ok) { showError('Error al eliminar.'); return; }
-      closeModal();
-      window.location.reload();
-    } catch { showError('Error de conexión.'); }
-    finally { setLoading(false); }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal();
   });
 
-  btnSubmit.addEventListener('click', async () => {
-    showError('');
-    const data = {
-      id:          fields.id.value,
-      plate:       fields.plate.value.trim(),
-      brand:       fields.brand.value.trim(),
-      model:       fields.model.value.trim(),
-      year:        fields.year.value,
-      description: fields.description.value.trim(),
-    };
-    if (!data.plate || !data.brand || !data.model || !data.year) {
-      showError('Completá los campos obligatorios.');
+  // Eliminar: hoja de confirmación que exige escribir la matrícula
+  btnDelete.addEventListener('click', async () => {
+    if (busy) return;
+    const id    = fields.id.value;
+    const plate = originalPlate;
+    const n     = Number(fields.count.value || 0);
+    const impact = n === 0
+      ? 'No tiene movimientos registrados.'
+      : `Se borrarán también sus ${n} ${n === 1 ? 'movimiento' : 'movimientos'}.`;
+
+    closeModal();
+    const deleted = await confirmSheet({
+      title:        `¿Eliminar el vehículo ${plate}?`,
+      body:         `${impact} Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      busyLabel:    'Eliminando…',
+      requireText:  n > 0 ? plate : undefined,
+      onConfirm: async () => {
+        const res = await api('/api/vehicles/delete', 'DELETE', { id });
+        if (!res.ok) toast({ kind: 'error', title: 'No se pudo eliminar', body: res.error });
+        return res.ok;
+      },
+    });
+
+    if (deleted) {
+      flashToast({ kind: 'success', title: 'Vehículo eliminado', body: plate });
+      reloadWithLoading();
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy || !vf.validate()) return;
+
+    busy = true;
+    btnDelete.disabled = true;
+    setButtonState(btnSubmit, 'loading', 'Guardando…');
+    const res = await api('/api/vehicles/update', 'PUT', { id: fields.id.value, ...vf.data() });
+
+    if (!res.ok) {
+      busy = false;
+      btnDelete.disabled = false;
+      setButtonState(btnSubmit, 'idle', 'Guardar');
+      if (res.status === 409) {
+        setFieldError(fields.plate, 'Esa matrícula ya está registrada.');
+        fields.plate.focus();
+      } else {
+        toast({ kind: 'error', title: res.offline ? 'Sin conexión' : 'No se pudo guardar', body: res.offline ? 'Inténtalo cuando vuelvas a tener red.' : res.error });
+      }
       return;
     }
-    setLoading(true);
-    try {
-      const res = await fetch('/api/vehicles/update', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (!res.ok) { showError(json.error ?? 'Error al guardar.'); return; }
-      closeModal();
-      window.location.reload();
-    } catch { showError('Error de conexión.'); }
-    finally { setLoading(false); }
+
+    setButtonState(btnSubmit, 'done', 'Guardado');
+    await wait(600);
+    flashToast({ kind: 'success', title: 'Vehículo actualizado', body: fields.plate.value });
+    reloadWithLoading();
   });
 </script>
