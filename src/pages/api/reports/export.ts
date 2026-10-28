@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { parseReportFilters, loadMovements, userVehicleOptions } from '@/lib/reports';
-import { categoryLabel } from '@/lib/categories';
+import { conceptName } from '@/lib/categories';
 import { toISODay } from '@/lib/dates';
 
 // CSV pensado para Excel en español: separador ';', BOM UTF-8 y CRLF.
@@ -25,7 +25,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
     ...movements.map((m) => [
       cell(toISODay(m.date)),
       cell(m.type === 'income' ? 'Ingreso' : 'Gasto'),
-      cell(categoryLabel(m.category)),
+      cell(conceptName(m.category, m.description)),
       cell(m.description),
       cell(m.plate),
       cell(m.amount),

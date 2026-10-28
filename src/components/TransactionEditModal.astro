@@ -206,7 +206,7 @@ import ConceptPicker from '@/components/ConceptPicker.astro';
     fields.date.value        = data.date; // YYYY-MM-DD
     fields.notes.value       = data.notes ?? '';
     concept.setType(type);
-    concept.value            = data.category ?? '';
+    concept.set(data.category ?? '', data.description);
 
     submitted = false;
     clearFieldErrors(form);
@@ -227,7 +227,7 @@ import ConceptPicker from '@/components/ConceptPicker.astro';
   function validate(): boolean {
     const errors: [HTMLElement, string][] = [
       [fields.amount,      parseAmount(fields.amount.value) > 0 ? '' : 'Introduce un importe mayor que 0.'],
-      [concept.input,      concept.value ? '' : 'Elige un concepto de la lista.'],
+      [concept.input,      concept.label ? '' : 'Indica un concepto.'],
       [fields.date,        fields.date.value ? '' : 'Indica la fecha.'],
     ];
     errors.forEach(([el, msg]) => setFieldError(el, msg));
@@ -265,6 +265,7 @@ import ConceptPicker from '@/components/ConceptPicker.astro';
     btnDelete.disabled = true;
     setButtonState(btnSubmit, 'loading', 'Guardando…');
 
+    concept.remember();
     const res = await api('/api/transactions/update', 'PUT', {
       id:          fields.id.value,
       amount:      parseAmount(fields.amount.value),
@@ -272,7 +273,7 @@ import ConceptPicker from '@/components/ConceptPicker.astro';
       vehicleId:   fields.vehicle.value,
       date:        fields.date.value,
       notes:       fields.notes.value.trim() || undefined,
-      category:    concept.value,
+      category:    concept.value || undefined,
     });
 
     if (!res.ok) {

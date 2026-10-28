@@ -39,5 +39,20 @@ const LABELS = new Map(
 export const categoryLabel = (key: string | null | undefined) =>
   (key && LABELS.get(key)) || NO_CATEGORY;
 
+/** Prefijo de las claves de informe para conceptos libres (sin clave en la lista) */
+export const CUSTOM_PREFIX = 'txt:';
+
+/** Clave para agrupar/filtrar: la del concepto o, si es libre, su texto */
+export const conceptKey = (category: string | null, description: string) =>
+  category ?? `${CUSTOM_PREFIX}${description}`;
+
+/** Nombre a mostrar: el del concepto o, si es libre, su texto */
+export const conceptName = (category: string | null, description: string) =>
+  category ? categoryLabel(category) : description || NO_CATEGORY;
+
+/** Nombre a partir de una clave de conceptKey() */
+export const conceptKeyLabel = (key: string) =>
+  key.startsWith(CUSTOM_PREFIX) ? key.slice(CUSTOM_PREFIX.length) : categoryLabel(key);
+
 export const isValidCategory = (type: TxType, key: string) =>
   CATEGORIES[type].some((c) => c.key === key);

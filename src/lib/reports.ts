@@ -4,7 +4,7 @@
 import { db } from '@/db';
 import { transactions, vehicles, userVehicles } from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
-import { CATEGORIES, categoryLabel, NO_CATEGORY, type TxType } from '@/lib/categories';
+import { CATEGORIES, CUSTOM_PREFIX, conceptKey, conceptName, type TxType } from '@/lib/categories';
 import { rangeFromParams, toISODay } from '@/lib/dates';
 
 const DAY = 86_400_000;
@@ -19,7 +19,7 @@ export interface ReportFilters {
   toISO:     string;
   vehicleId: string | null;
   type:      TxType | null;
-  /** clave de concepto, 'none' = sin concepto, null = todos */
+  /** clave de concepto, 'txt:<texto>' = concepto libre, 'none' = sin concepto, null = todos */
   concept:   string | null;
 }
 
@@ -78,6 +78,8 @@ function conditions(f: ReportFilters, vehicleIds: string[], from: Date, toEnd: D
     lte(transactions.date, toEnd),
     f.type ? eq(transactions.type, f.type) : undefined,
     f.concept === 'none' ? isNull(transactions.category)
+      : f.concept?.startsWith(CUSTOM_PREFIX)
+        ? and(isNull(transactions.category), eq(transactions.description, f.concept.slice(CUSTOM_PREFIX.length)))
       : f.concept ? eq(transactions.category, f.concept) : undefined,
   );
 }
@@ -184,8 +186,8 @@ function conceptRows(movements: Movement[], type: TxType): ConceptRow[] {
   let total = 0;
   for (const m of movements) {
     if (m.type !== type) continue;
-    const key = m.category ?? 'none';
-    const row = map.get(key) ?? { key, label: key === 'none' ? NO_CATEGORY : categoryLabel(key), amount: 0, count: 0, share: 0 };
+    const key = conceptKey(m.category, m.description);
+    const row = map.get(key) ?? { key, label: conceptName(m.category, m.description), amount: 0, count: 0, share: 0 };
     row.amount += m.amount;
     row.count++;
     total += m.amount;

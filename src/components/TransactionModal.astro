@@ -450,7 +450,7 @@ const onlyOne  = vehicles.length === 1 ? vehicles[0].id : '';
     const amount = parseAmount(fields.amount.value);
     const errors: [HTMLElement, string][] = [
       [fields.amount,      amount > 0 ? '' : 'Introduce un importe mayor que 0.'],
-      [concept.input,      concept.value ? '' : 'Elige un concepto de la lista.'],
+      [concept.input,      concept.label ? '' : 'Indica un concepto.'],
       [vehicleField,       selectedVehicle().id ? '' : 'Elige un vehículo.'],
       [fields.date,        fields.date.value ? '' : 'Indica la fecha.'],
     ];
@@ -495,7 +495,7 @@ const onlyOne  = vehicles.length === 1 ? vehicles[0].id : '';
       type:        currentType,
       amount:      parseAmount(fields.amount.value),
       description: concept.label,
-      category:    concept.value,
+      category:    concept.value || undefined,
       vehicleId:   vehicle.id,
       date:        fields.date.value,
       notes:       fields.notes.value.trim() || undefined,
@@ -503,6 +503,7 @@ const onlyOne  = vehicles.length === 1 ? vehicles[0].id : '';
 
     busy = true;
     setButtonState(btnSubmit, 'loading', 'Guardando…');
+    concept.remember();
     const res = await api('/api/transactions/create', 'POST', data);
 
     if (!res.ok && res.offline) {

@@ -171,7 +171,7 @@ const hasVehicles = userVehicleList.length > 0;
                 <p class="tx-desc">{tx.description}</p>
                 <div class="tx-meta">
                   <span class="badge-plate">{tx.plate}</span>
-                  {categoryLabel(tx.category) !== tx.description && (
+                  {tx.category && categoryLabel(tx.category) !== tx.description && (
                     <span class="badge-concept">{categoryLabel(tx.category)}</span>
                   )}
                   <span>{formatDay(tx.date)}</span>

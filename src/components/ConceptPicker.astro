@@ -2,7 +2,12 @@
 // Campo de concepto con búsqueda (combobox). Al escribir, filtra los conceptos
 // registrados del tipo actual y los ofrece en un desplegable. La lógica
 // (coincidencias, reseteo) está en src/scripts/concept-picker.ts.
-import { CATEGORIES } from '@/lib/categories';
+// Además de los conceptos de la lista, ofrece los conceptos libres ya usados
+// en los vehículos del usuario (clave vacía).
+import { CATEGORIES, type TxType } from '@/lib/categories';
+import { db } from '@/db';
+import { transactions, userVehicles } from '@/db/schema';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 interface Props {
   /** prefijo de ids, p. ej. "tx" → #tx-concept, #tx-concept-input */
@@ -10,6 +15,28 @@ interface Props {
 }
 const { prefix } = Astro.props;
 const id = `${prefix}-concept`;
+
+const concepts = { income: [...CATEGORIES.income], expense: [...CATEGORIES.expense] };
+try {
+  const used = await db
+    .selectDistinct({ type: transactions.type, description: transactions.description })
+    .from(transactions)
+    .where(and(
+      isNull(transactions.category),
+      inArray(
+        transactions.vehicleId,
+        db.select({ id: userVehicles.vehicleId }).from(userVehicles).where(eq(userVehicles.userId, Astro.locals.user.id)),
+      ),
+    ))
+    .orderBy(transactions.description);
+  for (const u of used) {
+    const list = concepts[u.type as TxType];
+    const label = u.description.trim();
+    if (label && !list.some((c) => c.label.toLowerCase() === label.toLowerCase())) list.push({ key: '', label });
+  }
+} catch (err) {
+  console.error('[concept-picker] error cargando conceptos usados', err);
+}
 ---
 
 <div id={id} class="field cb">
@@ -36,7 +63,7 @@ const id = `${prefix}-concept`;
     <ul id={`${id}-list`} class="cb-list" role="listbox" aria-label="Conceptos" hidden></ul>
   </div>
   <span id={`${id}-msg`} class="field-msg"></span>
-  <script type="application/json" data-concepts set:html={JSON.stringify(CATEGORIES)}></script>
+  <script type="application/json" data-concepts set:html={JSON.stringify(concepts).replace(/</g, '\\u003c')}></script>
 </div>
 
 <style is:global>

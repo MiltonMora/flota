@@ -7,7 +7,7 @@ import {
   parseReportFilters, filtersQuery, buildReport, userVehicleOptions, conceptOptions,
   type Report, type VehicleOption,
 } from '@/lib/reports';
-import { categoryLabel, NO_CATEGORY } from '@/lib/categories';
+import { categoryLabel, conceptKeyLabel, NO_CATEGORY } from '@/lib/categories';
 import { formatDay, currency } from '@/lib/dates';
 
 const user    = Astro.locals.user;
@@ -62,7 +62,7 @@ const vehicleLabel = filters.vehicleId
   ? vehicleOptions.find((v) => v.id === filters.vehicleId)?.plate ?? 'Vehículo'
   : null;
 const conceptLabel = filters.concept
-  ? (filters.concept === 'none' ? NO_CATEGORY : categoryLabel(filters.concept))
+  ? (filters.concept === 'none' ? NO_CATEGORY : conceptKeyLabel(filters.concept))
   : null;
 
 const maxVehicleAbs = Math.max(1, ...(report?.byVehicle ?? []).map((v) => Math.abs(v.balance)));
@@ -321,7 +321,7 @@ const hasData = (report?.totals.count ?? 0) > 0;
                 <p class="move-meta">
                   <span>{formatDay(m.date)}</span>
                   <span class="badge-plate">{m.plate}</span>
-                  {categoryLabel(m.category) !== m.description && <span>{categoryLabel(m.category)}</span>}
+                  {m.category && categoryLabel(m.category) !== m.description && <span>{categoryLabel(m.category)}</span>}
                 </p>
               </div>
               <p class="move-amount">

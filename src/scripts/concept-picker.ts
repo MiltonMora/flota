@@ -3,7 +3,9 @@
 // 1. Al escribir se filtran los conceptos registrados y se ofrecen en un desplegable.
 // 2. Si el usuario no elige ninguno, al salir del campo se busca una coincidencia
 //    con lo escrito: exacta (sin tildes ni mayúsculas) o, si no, una única que lo contenga.
-// 3. Si no hay coincidencia, se borra lo escrito y se avisa.
+// 3. Si no hay coincidencia, se usa lo escrito como concepto libre (sin clave).
+//    Los conceptos libres ya usados vienen en la lista con clave vacía, y los nuevos
+//    se añaden al guardar (remember) para que aparezcan en las siguientes búsquedas.
 
 import { setFieldError } from '@/scripts/ui';
 
@@ -21,10 +23,20 @@ export function conceptPicker(prefix: string) {
 
   let type: TxType = 'income';
   let chosen: Concept | null = null;   // concepto confirmado
+  let custom = '';                     // concepto libre (no está en la lista)
   let matches: Concept[] = [];         // opciones visibles
   let active = -1;                     // opción resaltada con el teclado
 
   const options = () => all[type];
+
+  /** Añade un concepto libre a la lista de su tipo (en todos los pickers de la página) */
+  function learn(t: TxType, label: string) {
+    if (label && !all[t].some((c) => normalize(c.label) === normalize(label))) all[t].push({ key: '', label });
+  }
+  document.addEventListener('concept-learned', (e) => {
+    const { type: t, label } = (e as CustomEvent<{ type: TxType; label: string }>).detail;
+    learn(t, label);
+  });
 
   function emitChange() {
     root.dispatchEvent(new CustomEvent('concept-change', { bubbles: true, detail: chosen }));
@@ -59,14 +71,16 @@ export function conceptPicker(prefix: string) {
       const empty = document.createElement('li');
       empty.className = 'cb-empty';
       empty.setAttribute('role', 'presentation');
-      empty.textContent = 'No hay conceptos que coincidan.';
+      empty.textContent = input.value.trim()
+        ? `Se usará "${input.value.trim()}" como concepto.`
+        : 'No hay conceptos que coincidan.';
       list.append(empty);
     }
 
     matches.forEach((c, i) => {
       const li = document.createElement('li');
-      li.id = `${prefix}-concept-opt-${c.key}`;
-      li.className = `cb-option${chosen?.key === c.key ? ' is-chosen' : ''}`;
+      li.id = `${prefix}-concept-opt-${i}`;
+      li.className = `cb-option${chosen === c ? ' is-chosen' : ''}`;
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', String(i === active));
       li.dataset.index = String(i);
@@ -98,6 +112,7 @@ export function conceptPicker(prefix: string) {
 
   function select(c: Concept | null) {
     chosen = c;
+    custom = '';
     input.value = c?.label ?? '';
     if (c) setFieldError(input, '');
     close();
@@ -112,7 +127,7 @@ export function conceptPicker(prefix: string) {
       return true;
     }
     if (!normalize(text)) {
-      if (chosen) { chosen = null; emitChange(); }
+      if (chosen || custom) { chosen = null; custom = ''; emitChange(); }
       return false;
     }
 
@@ -126,15 +141,14 @@ export function conceptPicker(prefix: string) {
       return true;
     }
 
-    // Sin coincidencia: se borra lo escrito
+    // Sin coincidencia: lo escrito queda como concepto libre
     chosen = null;
-    input.value = '';
+    custom = text.trim().replace(/\s+/g, ' ');
+    input.value = custom;
+    setFieldError(input, '');
     close();
     emitChange();
-    setFieldError(input, partial.length > 1
-      ? `Varios conceptos coinciden con "${text.trim()}" (${partial.map((c) => c.label).join(', ')}). Elige uno de la lista.`
-      : `"${text.trim()}" no es un concepto registrado. Elige uno de la lista.`);
-    return false;
+    return true;
   }
 
   // ── Eventos ──
@@ -144,6 +158,7 @@ export function conceptPicker(prefix: string) {
   input.addEventListener('input', () => {
     // Al escribir, la elección anterior deja de valer hasta confirmar
     if (chosen && normalize(input.value) !== normalize(chosen.label)) chosen = null;
+    custom = '';
     setFieldError(input, '');
     active = filter(input.value).length ? 0 : -1;
     if (list.hidden) open(); else render();
@@ -185,7 +200,7 @@ export function conceptPicker(prefix: string) {
     select(matches[Number(li.dataset.index)]);
   });
 
-  // Al salir del campo sin elegir: buscar coincidencia o borrar lo escrito
+  // Al salir del campo sin elegir: buscar coincidencia o dejarlo como concepto libre
   input.addEventListener('blur', () => {
     close();
     commit();
@@ -200,13 +215,24 @@ export function conceptPicker(prefix: string) {
       select(null);
       setFieldError(input, '');
     },
+    /** Clave del concepto de la lista ('' si es libre o está vacío) */
     get value() { return chosen?.key ?? ''; },
-    set value(key: string) {
-      chosen = options().find((c) => c.key === key) ?? null;
-      input.value = chosen?.label ?? '';
+    set value(key: string) { this.set(key); },
+    /** Carga un concepto: por clave o, si no la hay, como texto libre */
+    set(key: string, text = '') {
+      chosen = (key && options().find((c) => c.key === key))
+        || options().find((c) => !c.key && c.label === text.trim())
+        || null;
+      custom = chosen ? '' : text.trim();
+      input.value = chosen?.label ?? custom;
       setFieldError(input, '');
     },
-    get label() { return chosen?.label ?? ''; },
+    /** Texto del concepto (de la lista o libre) */
+    get label() { return chosen?.label ?? custom; },
+    /** Tras guardar: el concepto libre escrito pasa a ofrecerse en las búsquedas */
+    remember() {
+      if (custom) document.dispatchEvent(new CustomEvent('concept-learned', { detail: { type, label: custom } }));
+    },
     commit,
   };
 }
