@@ -1,0 +1,15 @@
+// Despliegue en Cloudflare Workers (plan gratuito). Ver README → "Despliegue en Cloudflare".
+// El adaptador de Astro completa main y los bindings ASSETS/SESSION al construir.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "flota",
+  "compatibility_date": "2026-04-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  // No secretas. El resto (DATABASE_URL, DATABASE_AUTH_TOKEN, BETTER_AUTH_SECRET, GOOGLE_*) son secretos: wrangler secret put
+  "vars": {
+    "BETTER_AUTH_URL": "https://flota.mayloevan.workers.dev"
+  }
+}

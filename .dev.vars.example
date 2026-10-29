@@ -1,0 +1,8 @@
+# Variables para `npm run preview:cf` (Worker local). Copiar a .dev.vars.
+# En Workers no funciona file:, hace falta una base Turso (idealmente una de pruebas).
+DATABASE_URL=libsql://<db>.turso.io
+DATABASE_AUTH_TOKEN=
+BETTER_AUTH_URL=http://localhost:8787
+BETTER_AUTH_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=

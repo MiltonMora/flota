@@ -47,10 +47,42 @@ En Google Cloud Console, la URI de redirección autorizada es
 
 ## Producción
 
+### Node (Railway)
+
 ```sh
 npm run build
 npm start                 # node ./dist/server/entry.mjs
 ```
+
+### Cloudflare Workers (plan gratuito)
+
+El mismo código se construye para Workers con `DEPLOY_TARGET=cloudflare` (adaptador `@astrojs/cloudflare`; en Workers se usa el cliente HTTP de libSQL, así que la base tiene que ser Turso: `file:` no funciona).
+
+| Comando              | Acción                                                  |
+| :------------------- | :------------------------------------------------------ |
+| `npm run build:cf`   | Build para Workers                                      |
+| `npm run preview:cf` | Build + Worker local (`wrangler dev`, lee `.dev.vars`)  |
+| `npm run deploy:cf`  | Build + `wrangler deploy`                               |
+
+Primera vez:
+
+1. `npx wrangler login`
+2. Variables (secretos del Worker), una a una:
+   ```sh
+   npx wrangler secret put DATABASE_URL          # libsql://<db>.turso.io
+   npx wrangler secret put DATABASE_AUTH_TOKEN
+   npx wrangler secret put BETTER_AUTH_SECRET
+   npx wrangler secret put GOOGLE_CLIENT_ID
+   npx wrangler secret put GOOGLE_CLIENT_SECRET
+   ```
+   `BETTER_AUTH_URL` no es secreta: está en `vars` de `wrangler.jsonc` (`https://flota.mayloevan.workers.dev`).
+   (Si el Worker aún no existe, `wrangler secret put` lo crea. También se pueden poner en el panel: Workers → flota → Settings → Variables and Secrets.)
+3. En Google Cloud Console, añadir a la credencial OAuth el URI de redirección `https://flota.mayloevan.workers.dev/api/auth/callback/google`.
+4. `npm run deploy:cf`. El KV `SESSION` que pide el adaptador se crea solo en el primer despliegue (la app no usa sesiones de Astro, así que no consume cuota).
+
+Despliegue automático desde GitHub (Workers Builds): en el panel, Workers → Create → Import a repository, con build command `npm run build:cf` y deploy command `npx wrangler deploy`.
+
+Límites del plan gratuito a tener en cuenta: 100.000 peticiones/día, 10 ms de CPU por petición (el tiempo esperando a Turso no cuenta) y 3 MB comprimidos por Worker (el build actual ocupa ~450 KB).
 
 ## Estructura
 

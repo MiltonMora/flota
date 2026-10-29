@@ -1,8 +1,12 @@
 import { defineConfig, envField } from 'astro/config';
 import node from '@astrojs/node';
+import cloudflare from '@astrojs/cloudflare';
 import tailwindcss from '@tailwindcss/vite';
 
 const secret = (opts = {}) => envField.string({ context: 'server', access: 'secret', ...opts });
+
+// Destino del build: Node (local y Railway, por defecto) o Cloudflare Workers (DEPLOY_TARGET=cloudflare)
+const isCloudflare = process.env.DEPLOY_TARGET === 'cloudflare';
 
 export default defineConfig({
   output: 'server',
@@ -18,9 +22,10 @@ export default defineConfig({
       GOOGLE_CLIENT_SECRET: secret({ optional: true }),
     },
   },
-  adapter: node({
-    mode: 'standalone'
-  }),
+  adapter: isCloudflare
+    // Sin servicio de imágenes de Cloudflare (no se usa astro:assets): no requiere binding IMAGES
+    ? cloudflare({ imageService: 'passthrough' })
+    : node({ mode: 'standalone' }),
   vite: {
     plugins: [tailwindcss()],
     resolve: {
