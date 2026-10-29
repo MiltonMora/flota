@@ -4,7 +4,7 @@ import DateRangePicker from '@/components/DateRangePicker.astro';
 import EmptyState from '@/components/EmptyState.astro';
 import ErrorState from '@/components/ErrorState.astro';
 import {
-  parseReportFilters, filtersQuery, buildReport, userVehicleOptions, conceptOptions,
+  parseReportFilters, filtersQuery, toggleConcept, buildReport, userVehicleOptions,
   type Report, type VehicleOption,
 } from '@/lib/reports';
 import { categoryLabel, conceptKeyLabel, NO_CATEGORY } from '@/lib/categories';
@@ -61,9 +61,16 @@ const kpis = t && p ? {
 const vehicleLabel = filters.vehicleId
   ? vehicleOptions.find((v) => v.id === filters.vehicleId)?.plate ?? 'Vehículo'
   : null;
-const conceptLabel = filters.concept
-  ? (filters.concept === 'none' ? NO_CATEGORY : conceptKeyLabel(filters.concept))
-  : null;
+const conceptLabel = (key: string) => (key === 'none' ? NO_CATEGORY : conceptKeyLabel(key));
+const selectedConcepts = filters.concepts.map((key) => ({ key, label: conceptLabel(key) }));
+
+// Opciones del selector de conceptos: las del período (según el tipo) y las ya elegidas aunque no tengan datos
+const conceptGroups = (['expense', 'income'] as const)
+  .filter((type) => !filters.type || filters.type === type)
+  .map((type) => ({ type, title: type === 'expense' ? 'Gastos' : 'Ingresos', options: report?.conceptOptions[type] ?? [] }))
+  .filter((g) => g.options.length > 0);
+const offeredKeys = new Set(conceptGroups.flatMap((g) => g.options.map((o) => o.key)));
+const orphanConcepts = selectedConcepts.filter((c) => !offeredKeys.has(c.key));
 
 const maxVehicleAbs = Math.max(1, ...(report?.byVehicle ?? []).map((v) => Math.abs(v.balance)));
 const shownMovements = report?.movements.slice(0, 50) ?? [];
@@ -94,7 +101,7 @@ const hasData = (report?.totals.count ?? 0) > 0;
     <form method="GET" class="filters" id="filters">
       <input type="hidden" name="from" value={filters.fromISO} />
       <input type="hidden" name="to"   value={filters.toISO} />
-      {filters.concept && <input type="hidden" name="concept" value={filters.concept} />}
+      {filters.concepts.map((key) => <input type="hidden" name="concept" value={key} />)}
 
       <button type="button" id="period-open" class="filter-btn period" aria-haspopup="dialog">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -112,6 +119,14 @@ const hasData = (report?.totals.count ?? 0) > 0;
         ))}
       </select>
 
+      <button type="button" id="concept-open" class="filter-btn" aria-haspopup="dialog">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        Conceptos
+        {selectedConcepts.length > 0 && <span class="filter-count">{selectedConcepts.length}</span>}
+      </button>
+
       <div class="segmented" role="radiogroup" aria-label="Tipo de movimiento">
         {[['', 'Todo'], ['income', 'Ingresos'], ['expense', 'Gastos']].map(([value, label]) => (
           <label class="seg">
@@ -122,7 +137,7 @@ const hasData = (report?.totals.count ?? 0) > 0;
       </div>
     </form>
 
-    {(vehicleLabel || conceptLabel) && (
+    {(vehicleLabel || selectedConcepts.length > 0) && (
       <div class="active-filters">
         {vehicleLabel && (
           <a href={filtersQuery(filters, { vehicle: null })} class="active-chip" aria-label={`Quitar filtro de vehículo ${vehicleLabel}`}>
@@ -130,11 +145,14 @@ const hasData = (report?.totals.count ?? 0) > 0;
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
           </a>
         )}
-        {conceptLabel && (
-          <a href={filtersQuery(filters, { concept: null })} class="active-chip" aria-label={`Quitar filtro de concepto ${conceptLabel}`}>
-            {conceptLabel}
+        {selectedConcepts.map((c) => (
+          <a href={filtersQuery(filters, { concept: toggleConcept(filters, c.key) })} class="active-chip" aria-label={`Quitar filtro de concepto ${c.label}`}>
+            {c.label}
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
           </a>
+        ))}
+        {selectedConcepts.length > 1 && (
+          <a href={filtersQuery(filters, { concept: null })} class="clear-link">Quitar conceptos</a>
         )}
       </div>
     )}
@@ -235,8 +253,8 @@ const hasData = (report?.totals.count ?? 0) > 0;
           <ul class="bars" role="list">
             {report!.byConcept[type].map((c) => (
               <li>
-                <a class="bar-row" href={filtersQuery(filters, { concept: filters.concept === c.key ? null : c.key, type })}
-                   aria-label={`${c.label}: ${currency(c.amount)}, ${pct(c.share)} del total, ${c.count} movimientos. Filtrar por este concepto.`}>
+                <a class="bar-row" href={filtersQuery(filters, { concept: toggleConcept(filters, c.key) })}
+                   aria-label={`${c.label}: ${currency(c.amount)}, ${pct(c.share)} del total, ${c.count} movimientos. ${filters.concepts.includes(c.key) ? 'Quitar del filtro.' : 'Añadir al filtro.'}`}>
                   <span class="bar-label">{c.label}</span>
                   <span class="bar-value">{currency(c.amount)} <span class="bar-share">{pct(c.share)}</span></span>
                   <span class="bar-track" aria-hidden="true">
@@ -353,8 +371,58 @@ const hasData = (report?.totals.count ?? 0) > 0;
       <form method="GET" id="period-form">
         {filters.vehicleId && <input type="hidden" name="vehicle" value={filters.vehicleId} />}
         {filters.type && <input type="hidden" name="type" value={filters.type} />}
-        {filters.concept && <input type="hidden" name="concept" value={filters.concept} />}
+        {filters.concepts.map((key) => <input type="hidden" name="concept" value={key} />)}
         <DateRangePicker from={filters.fromISO} to={filters.toISO} tone="navy" />
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Hoja de conceptos ── -->
+  <div id="concept-overlay" class="sheet-overlay" aria-hidden="true">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="concept-title">
+      <div class="sheet-head">
+        <h2 id="concept-title" class="sheet-title">Conceptos</h2>
+        <button type="button" id="concept-close" class="sheet-close" aria-label="Cerrar">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <form method="GET" id="concept-form" class="concept-form">
+        <input type="hidden" name="from" value={filters.fromISO} />
+        <input type="hidden" name="to"   value={filters.toISO} />
+        {filters.vehicleId && <input type="hidden" name="vehicle" value={filters.vehicleId} />}
+        {filters.type && <input type="hidden" name="type" value={filters.type} />}
+
+        {conceptGroups.length === 0 && orphanConcepts.length === 0 && (
+          <p class="concept-empty">No hay movimientos en {periodLabel}.</p>
+        )}
+        {orphanConcepts.length > 0 && (
+          <fieldset class="concept-group">
+            <legend>Seleccionados sin movimientos</legend>
+            {orphanConcepts.map((c) => (
+              <label class="concept-opt">
+                <input type="checkbox" name="concept" value={c.key} checked />
+                <span class="concept-name">{c.label}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {conceptGroups.map((g) => (
+          <fieldset class="concept-group">
+            <legend>{g.title}</legend>
+            {g.options.map((o) => (
+              <label class="concept-opt">
+                <input type="checkbox" name="concept" value={o.key} checked={filters.concepts.includes(o.key)} />
+                <span class="concept-name">{o.label}</span>
+                <span class="concept-meta">{currency(o.amount)} · {o.count}</span>
+              </label>
+            ))}
+          </fieldset>
+        ))}
+
+        <div class="concept-actions">
+          <button type="button" id="concept-clear" class="btn-secondary">Limpiar</button>
+          <button type="submit" class="btn-primary">Aplicar</button>
+        </div>
       </form>
     </div>
   </div>
@@ -394,7 +462,13 @@ const hasData = (report?.totals.count ?? 0) > 0;
   .seg input:checked + span { background: white; color: var(--color-carbon); font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
   .seg input:focus-visible + span { box-shadow: 0 0 0 3px rgba(42, 95, 165, 0.3); }
 
-  .active-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-count {
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--color-navy); color: white;
+    font-family: var(--font-mono); font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .clear-link { font-family: var(--font-mono); font-size: 11px; color: var(--color-navy); padding: 0 4px; }
   .active-chip {
     display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px;
     border-radius: 99px; background: var(--color-navy); color: white; text-decoration: none;
@@ -512,6 +586,32 @@ const hasData = (report?.totals.count ?? 0) > 0;
     background: var(--color-navy-light); color: var(--color-navy);
     display: flex; align-items: center; justify-content: center;
   }
+
+  /* Hoja de conceptos */
+  .concept-form { display: flex; flex-direction: column; gap: 14px; }
+  .concept-group { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .concept-group legend {
+    font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+  .concept-opt {
+    display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px;
+    border-bottom: 1px solid #f0efea; cursor: pointer;
+  }
+  .concept-opt input { width: 18px; height: 18px; accent-color: var(--color-navy); flex-shrink: 0; }
+  .concept-name { flex: 1; min-width: 0; font-size: 14px; color: var(--color-carbon); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .concept-meta { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); white-space: nowrap; }
+  .concept-empty { margin: 0; font-size: 13px; color: var(--color-muted-strong); }
+  .concept-actions {
+    /* Pegado al borde inferior de la hoja, tapando también su padding */
+    position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 2fr; gap: 8px;
+    background: white; padding: 10px 0 calc(18px + env(safe-area-inset-bottom));
+  }
+  .btn-primary, .btn-secondary {
+    min-height: 44px; border-radius: 10px; font-family: var(--font-sans); font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .btn-primary   { border: none; background: var(--color-navy); color: white; }
+  .btn-secondary { border: 1.5px solid var(--color-navy); background: white; color: var(--color-navy); }
 </style>
 
 <style is:global>
@@ -536,23 +636,29 @@ const hasData = (report?.totals.count ?? 0) > 0;
 </style>
 
 <script>
-  // ── Hoja de período ──
-  const overlay = document.getElementById('period-overlay')!;
-  const openBtn = document.getElementById('period-open')!;
-  const open  = () => { overlay.classList.add('open'); overlay.setAttribute('aria-hidden', 'false'); };
-  const close = () => { overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true'); openBtn.focus(); };
-  openBtn.addEventListener('click', open);
-  document.getElementById('period-close')!.addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) close(); });
-  document.getElementById('period-form')!.addEventListener('submit', () => overlay.classList.remove('open'));
+  // ── Hojas de período y de conceptos ──
+  function sheet(name: string) {
+    const overlay = document.getElementById(`${name}-overlay`)!;
+    const openBtn = document.getElementById(`${name}-open`)!;
+    const open  = () => { overlay.classList.add('open'); overlay.setAttribute('aria-hidden', 'false'); };
+    const close = () => { overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true'); openBtn.focus(); };
+    openBtn.addEventListener('click', open);
+    document.getElementById(`${name}-close`)!.addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) close(); });
+    document.getElementById(`${name}-form`)!.addEventListener('submit', () => overlay.classList.remove('open'));
+  }
+  sheet('period');
+  sheet('concept');
+  document.getElementById('concept-clear')!.addEventListener('click', () =>
+    document.querySelectorAll<HTMLInputElement>('#concept-form input[name="concept"]').forEach((c) => { c.checked = false; }));
 
   // ── Filtros que se aplican al cambiar ──
   const filters = document.getElementById('filters') as HTMLFormElement;
   filters.querySelectorAll('[data-autosubmit]').forEach((el) =>
     el.addEventListener('change', () => {
       // Un concepto es de ingresos o de gastos: al cambiar el tipo se quita
-      if ((el as HTMLInputElement).name === 'type') filters.querySelector('input[name="concept"]')?.remove();
+      if ((el as HTMLInputElement).name === 'type') filters.querySelectorAll('input[name="concept"]').forEach((c) => c.remove());
       filters.requestSubmit();
     }));
 

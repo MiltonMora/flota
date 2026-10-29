@@ -3,8 +3,8 @@
 // Lo usan /reports y /api/reports/export.
 import { db } from '@/db';
 import { transactions, vehicles, userVehicles } from '@/db/schema';
-import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
-import { CATEGORIES, CUSTOM_PREFIX, conceptKey, conceptName, type TxType } from '@/lib/categories';
+import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { CUSTOM_PREFIX, conceptKey, conceptName, type TxType } from '@/lib/categories';
 import { rangeFromParams, toISODay } from '@/lib/dates';
 
 const DAY = 86_400_000;
@@ -19,8 +19,8 @@ export interface ReportFilters {
   toISO:     string;
   vehicleId: string | null;
   type:      TxType | null;
-  /** clave de concepto, 'txt:<texto>' = concepto libre, 'none' = sin concepto, null = todos */
-  concept:   string | null;
+  /** claves de concepto ('txt:<texto>' = concepto libre, 'none' = sin concepto); vacío = todos */
+  concepts:  string[];
 }
 
 export function parseReportFilters(params: URLSearchParams): ReportFilters {
@@ -30,19 +30,25 @@ export function parseReportFilters(params: URLSearchParams): ReportFilters {
     ...range,
     vehicleId: params.get('vehicle') || null,
     type:      type === 'income' || type === 'expense' ? type : null,
-    concept:   params.get('concept') || null,
+    concepts:  [...new Set(params.getAll('concept').filter(Boolean))],
   };
 }
 
-/** Query string con los filtros, cambiando los que se indiquen */
-export function filtersQuery(f: ReportFilters, patch: Record<string, string | null> = {}) {
+/** Query string con los filtros, cambiando los que se indiquen (concept admite varios) */
+export function filtersQuery(f: ReportFilters, patch: Record<string, string | string[] | null> = {}) {
   const q = new URLSearchParams();
-  const values: Record<string, string | null> = {
-    from: f.fromISO, to: f.toISO, vehicle: f.vehicleId, type: f.type, concept: f.concept, ...patch,
+  const values: Record<string, string | string[] | null> = {
+    from: f.fromISO, to: f.toISO, vehicle: f.vehicleId, type: f.type, concept: f.concepts, ...patch,
   };
-  for (const [k, v] of Object.entries(values)) if (v) q.set(k, v);
+  for (const [k, v] of Object.entries(values)) {
+    for (const item of Array.isArray(v) ? v : [v]) if (item) q.append(k, item);
+  }
   return `?${q}`;
 }
+
+/** Conceptos seleccionados tras añadir o quitar `key` */
+export const toggleConcept = (f: ReportFilters, key: string) =>
+  f.concepts.includes(key) ? f.concepts.filter((k) => k !== key) : [...f.concepts, key];
 
 // ─── Datos ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +75,18 @@ export async function userVehicleOptions(userId: string): Promise<VehicleOption[
     .orderBy(vehicles.plate);
 }
 
+function conceptCondition(key: string) {
+  if (key === 'none') return isNull(transactions.category);
+  if (key.startsWith(CUSTOM_PREFIX)) {
+    return and(isNull(transactions.category), eq(transactions.description, key.slice(CUSTOM_PREFIX.length)));
+  }
+  return eq(transactions.category, key);
+}
+
+/** Mismo criterio que conceptCondition(), sobre un movimiento ya cargado */
+const matchesConcept = (m: Movement, key: string) =>
+  key === 'none' ? m.category === null : conceptKey(m.category, m.description) === key;
+
 /** Condiciones comunes. Solo vehículos del usuario (el vehículo filtrado debe ser suyo). */
 function conditions(f: ReportFilters, vehicleIds: string[], from: Date, toEnd: Date) {
   const ids = f.vehicleId ? vehicleIds.filter((id) => id === f.vehicleId) : vehicleIds;
@@ -77,10 +95,7 @@ function conditions(f: ReportFilters, vehicleIds: string[], from: Date, toEnd: D
     gte(transactions.date, from),
     lte(transactions.date, toEnd),
     f.type ? eq(transactions.type, f.type) : undefined,
-    f.concept === 'none' ? isNull(transactions.category)
-      : f.concept?.startsWith(CUSTOM_PREFIX)
-        ? and(isNull(transactions.category), eq(transactions.description, f.concept.slice(CUSTOM_PREFIX.length)))
-      : f.concept ? eq(transactions.category, f.concept) : undefined,
+    f.concepts.length ? or(...f.concepts.map(conceptCondition)) : undefined,
   );
 }
 
@@ -122,6 +137,8 @@ export interface Report {
   granularity: 'day' | 'week' | 'month';
   series:      Bucket[];
   byConcept:   Record<TxType, ConceptRow[]>;
+  /** Todos los conceptos del período (sin aplicar el filtro de concepto), para elegir */
+  conceptOptions: Record<TxType, ConceptRow[]>;
   byVehicle:   VehicleRow[];
   movements:   Movement[];
   days:        number;
@@ -200,7 +217,11 @@ function conceptRows(movements: Movement[], type: TxType): ConceptRow[] {
 
 export async function buildReport(f: ReportFilters, vehicleOptions: VehicleOption[]): Promise<Report> {
   const vehicleIds = vehicleOptions.map((v) => v.id);
-  const movements  = await loadMovements(f, vehicleIds);
+  // Se cargan sin filtro de concepto para poder ofrecer todos los del período
+  const unfiltered = await loadMovements({ ...f, concepts: [] }, vehicleIds);
+  const movements  = f.concepts.length
+    ? unfiltered.filter((m) => f.concepts.some((k) => matchesConcept(m, k)))
+    : unfiltered;
   const totals     = sumTotals(movements);
   const days       = Math.round((f.to.getTime() - f.from.getTime()) / DAY) + 1;
 
@@ -247,6 +268,7 @@ export async function buildReport(f: ReportFilters, vehicleOptions: VehicleOptio
 
   return {
     totals, previous, granularity, series: buckets, byConcept, byVehicle, movements, days,
+    conceptOptions: { income: conceptRows(unfiltered, 'income'), expense: conceptRows(unfiltered, 'expense') },
     insights: {
       avgDailyIncome:  totals.income / days,
       avgDailyExpense: totals.expense / days,
@@ -258,6 +280,3 @@ export async function buildReport(f: ReportFilters, vehicleOptions: VehicleOptio
     },
   };
 }
-
-export const conceptOptions = (type: TxType | null) =>
-  type ? CATEGORIES[type] : [...CATEGORIES.income, ...CATEGORIES.expense];
