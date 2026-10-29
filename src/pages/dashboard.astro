@@ -109,10 +109,26 @@ const initials = (name?: string | null) =>
         <p class="greeting">hola, {user.name?.split(' ')[0] ?? 'usuario'}</p>
         <h1 class="title">Resumen<br />general</h1>
       </div>
-      {user.image
-        ? <img src={user.image} alt="Perfil" class="avatar-img" loading="lazy" />
-        : <div class="avatar-initials">{initials(user.name)}</div>
-      }
+      <div class="account">
+        <button type="button" id="account-btn" class="account-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu" aria-label="Cuenta">
+          {user.image
+            ? <img src={user.image} alt="" class="avatar-img" loading="lazy" referrerpolicy="no-referrer" />
+            : <div class="avatar-initials" aria-hidden="true">{initials(user.name)}</div>
+          }
+        </button>
+        <div id="account-menu" class="account-menu" role="menu" hidden>
+          <p class="account-who">
+            <span class="account-name">{user.name ?? 'Usuario'}</span>
+            <span class="account-email">{user.email}</span>
+          </p>
+          <button type="button" id="logout-btn" class="account-item" role="menuitem">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 16l-4-4 4-4M6 12h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
     </header>
 
     <!-- Balance card -->
@@ -286,6 +302,24 @@ const initials = (name?: string | null) =>
 
   .title { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--color-navy); line-height: 1.05; }
 
+  .account { position: relative; flex-shrink: 0; }
+  .account-btn { padding: 0; border: none; background: none; border-radius: 50%; cursor: pointer; display: block; }
+  .account-btn:focus-visible { outline: 3px solid rgba(42, 95, 165, 0.35); outline-offset: 2px; }
+  .account-menu {
+    position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; min-width: 220px; max-width: calc(100vw - 2.5rem);
+    background: white; border-radius: 12px; border: 0.5px solid #d6d4cc; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14); padding: 6px;
+  }
+  .account-menu[hidden] { display: none; }
+  .account-who { margin: 0; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #f0efea; }
+  .account-name  { font-size: 14px; font-weight: 600; color: var(--color-carbon); }
+  .account-email { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); overflow-wrap: anywhere; }
+  .account-item {
+    width: 100%; min-height: 44px; margin-top: 4px; padding: 0 10px; border: none; border-radius: 8px; background: none; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; font-family: var(--font-sans); font-size: 14px; color: var(--color-expense);
+  }
+  .account-item:hover, .account-item:focus-visible { background: var(--color-asphalt); outline: none; }
+  .account-item:disabled { opacity: 0.6; cursor: progress; }
+
   .avatar-img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2.5px solid var(--color-amber-accent); }
 
   .avatar-initials {
@@ -435,6 +469,36 @@ const initials = (name?: string | null) =>
 </style>
 
 <script>
+  import { toast } from '@/scripts/ui';
+
+  // ── Menú de cuenta / cerrar sesión ───────────────────────────────────────
+  const accountBtn  = document.getElementById('account-btn')!;
+  const accountMenu = document.getElementById('account-menu')!;
+  const logoutBtn   = document.getElementById('logout-btn') as HTMLButtonElement;
+  const setMenu = (open: boolean) => {
+    accountMenu.hidden = !open;
+    accountBtn.setAttribute('aria-expanded', String(open));
+    if (open) logoutBtn.focus();
+  };
+  accountBtn.addEventListener('click', () => setMenu(accountBtn.getAttribute('aria-expanded') !== 'true'));
+  document.addEventListener('click', (e) => {
+    if (!accountMenu.hidden && !(e.target as Element).closest('.account')) setMenu(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !accountMenu.hidden) { setMenu(false); accountBtn.focus(); }
+  });
+  logoutBtn.addEventListener('click', async () => {
+    logoutBtn.disabled = true;
+    try {
+      const res = await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!res.ok) throw new Error(String(res.status));
+      window.location.href = '/login';
+    } catch {
+      logoutBtn.disabled = false;
+      toast({ kind: 'error', title: 'No se pudo cerrar la sesión', body: 'Inténtalo de nuevo.' });
+    }
+  });
+
   // ── Period modal ─────────────────────────────────────────────────────────
   const periodOverlay = document.getElementById('period-modal-overlay')!;
   const periodClose   = document.getElementById('period-modal-close')!;
