@@ -1,12 +1,16 @@
 ---
-interface Props { title?: string; }
-const { title = 'Flota Vial' } = Astro.props;
+interface Props { title?: string; description?: string; }
+const {
+  title = 'Flota Vial',
+  description = 'Control de ingresos y gastos por vehículo para tu flota: registra movimientos y consulta informes desde el móvil.',
+} = Astro.props;
 ---
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
+    <meta name="description" content={description} />
     <style is:global>
       @import '@/styles/global.css';
     </style>

@@ -11,13 +11,13 @@ const error = Astro.url.searchParams.get('error');
 <Layout title="Flota Vial">
   <main>
 
-    <div class="logo-area">
+    <a href="/" class="logo-area" aria-label="Flota Vial, volver a la portada">
       <div class="logo-mark">
         <div class="logo-mark-inner"></div>
       </div>
       <h1 class="logo-name">FLOTA VIAL</h1>
       <p class="logo-tag">control vehicular</p>
-    </div>
+    </a>
 
     <div class="bottom-area">
 
@@ -85,6 +85,7 @@ const error = Astro.url.searchParams.get('error');
   }
 
   .logo-area {
+    text-decoration: none;
     display: flex;
     flex-direction: column;
     justify-content: center;

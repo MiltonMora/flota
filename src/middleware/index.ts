@@ -13,8 +13,8 @@ const ADMIN_ROUTES  = ['/admin', '/api/admin'];
 const authGuard = defineMiddleware(async (ctx, next) => {
   const { pathname } = new URL(ctx.request.url);
 
-  // Rutas públicas — pasan sin verificación
-  if (PUBLIC_ROUTES.some(r => pathname === r || pathname.startsWith(`${r}/`))) {
+  // Rutas públicas — pasan sin verificación (la portada / es la página de presentación)
+  if (pathname === '/' || PUBLIC_ROUTES.some(r => pathname === r || pathname.startsWith(`${r}/`))) {
     return next();
   }
 
