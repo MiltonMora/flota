@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
 import { users } from '@/db/schema';
+import { isAdmin } from '@/lib/admin';
 import {
   BETTER_AUTH_URL, BETTER_AUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 } from 'astro:env/server';
@@ -34,6 +35,7 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        // Los usuarios nuevos quedan pendientes hasta que un administrador los active
         after: async (authUser) => {
           await db
             .insert(users)
@@ -42,7 +44,7 @@ export const auth = betterAuth({
               email:    authUser.email,
               name:     authUser.name ?? null,
               image:    authUser.image ?? null,
-              isActive: true,
+              isActive: isAdmin(authUser.email),
             })
             .onConflictDoNothing();
         },

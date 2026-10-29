@@ -6,6 +6,7 @@
 //
 // Uso: npm run dev:login            → usuario demo con datos de ejemplo
 //      npm run dev:login -- --empty → usuario demo sin vehículos (estados vacíos)
+//      npm run dev:login -- --admin → administrador (ve /admin/users), sin datos de ejemplo
 
 import { createClient } from '@libsql/client';
 import { createHmac, randomBytes } from 'node:crypto';
@@ -15,7 +16,8 @@ try { process.loadEnvFile(); } catch { /* sin .env */ }
 const url    = process.env.DATABASE_URL || 'file:./local.db';
 const secret = process.env.BETTER_AUTH_SECRET;
 const appUrl = process.env.BETTER_AUTH_URL || 'http://localhost:4321';
-const empty  = process.argv.includes('--empty');
+const admin  = process.argv.includes('--admin');
+const empty  = admin || process.argv.includes('--empty');
 
 if (!url.startsWith('file:')) {
   console.error(`✖ Solo se permite con una base local (DATABASE_URL=file:...). Actual: ${url}`);
@@ -29,7 +31,10 @@ if (!secret) {
 const db  = createClient({ url });
 const now = Math.floor(Date.now() / 1000);
 
-const USER = empty
+// El email del administrador debe estar en src/lib/admin.ts
+const USER = admin
+  ? { id: 'dev-admin', name: 'Administrador', email: 'mayloevan@gmail.com' }
+  : empty
   ? { id: 'dev-empty', name: 'Usuario Vacío', email: 'vacio@flota.test' }
   : { id: 'dev-demo',  name: 'Usuario Demo',  email: 'demo@flota.test' };
 

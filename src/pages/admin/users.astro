@@ -1,0 +1,162 @@
+---
+import AppLayout from '@/layouts/AppLayout.astro';
+import ErrorState from '@/components/ErrorState.astro';
+import { db } from '@/db';
+import { users } from '@/db/schema';
+import { asc, desc } from 'drizzle-orm';
+import { formatDay } from '@/lib/dates';
+
+// Solo administradores (lo comprueba el middleware para /admin/*)
+const me = Astro.locals.user;
+
+let loadError = false;
+let list: { id: string; email: string; name: string | null; image: string | null; isActive: boolean; createdAt: Date }[] = [];
+try {
+  // Pendientes primero; dentro de cada grupo, los más recientes arriba
+  list = await db
+    .select({ id: users.id, email: users.email, name: users.name, image: users.image, isActive: users.isActive, createdAt: users.createdAt })
+    .from(users)
+    .orderBy(asc(users.isActive), desc(users.createdAt));
+} catch (err) {
+  console.error('[admin] error cargando usuarios', err);
+  loadError = true;
+}
+
+const pending = list.filter((u) => !u.isActive).length;
+---
+
+<AppLayout title="Usuarios · Flota Vial">
+  <div class="page">
+
+    <header class="page-header">
+      <p class="kicker">administración</p>
+      <h1 class="title">Usuarios</h1>
+      {!loadError && (
+        <p class="summary">
+          {pending > 0 ? `${pending} pendiente${pending === 1 ? '' : 's'} de activar` : 'Sin solicitudes pendientes'} · {list.length} en total
+        </p>
+      )}
+    </header>
+
+    {loadError ? (
+      <ErrorState title="No pudimos cargar los usuarios" />
+    ) : (
+      <ul class="list" role="list">
+        {list.map((u) => (
+          <li class="user-card" data-id={u.id}>
+            {u.image
+              ? <img class="avatar" src={u.image} alt="" width="36" height="36" referrerpolicy="no-referrer" />
+              : <span class="avatar avatar-empty" aria-hidden="true">{(u.name ?? u.email).charAt(0).toUpperCase()}</span>}
+            <div class="user-main">
+              <p class="user-name">
+                {u.name ?? u.email}
+                <span class={`badge ${u.isActive ? 'badge-active' : 'badge-pending'}`} data-badge>{u.isActive ? 'Activo' : 'Pendiente'}</span>
+              </p>
+              <p class="user-meta">
+                <span class="user-email">{u.email}</span>
+                <span>desde {formatDay(u.createdAt)}</span>
+              </p>
+            </div>
+            {u.id === me.id ? (
+              <span class="status status-self">Tú</span>
+            ) : (
+              <button
+                type="button"
+                class={`toggle ${u.isActive ? 'is-active' : 'is-pending'}`}
+                data-id={u.id}
+                data-email={u.email}
+                data-active={String(u.isActive)}
+                aria-label={u.isActive ? `Desactivar a ${u.email}` : `Activar a ${u.email}`}
+              >
+                {u.isActive ? 'Desactivar' : 'Activar'}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</AppLayout>
+
+<style>
+  .page {
+    padding: 1.25rem 1.25rem calc(6rem + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 1rem;
+    min-height: 100dvh; background: var(--color-asphalt);
+  }
+  .kicker { font-family: var(--font-mono); font-size: 11px; color: var(--color-navy-mid); letter-spacing: 0.05em; margin-bottom: 2px; }
+  .title  { font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: var(--color-navy); line-height: 1; }
+  .summary { margin: 6px 0 0; font-family: var(--font-mono); font-size: 11px; color: var(--color-muted-strong); }
+
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .user-card {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    background: white; border-radius: 12px; border: 0.5px solid #e5e7eb;
+  }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }
+  .avatar-empty {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--color-navy-light); color: var(--color-navy); font-weight: 600; font-size: 14px;
+  }
+  .user-main { flex: 1; min-width: 0; }
+  .user-name {
+    margin: 0; display: flex; align-items: center; gap: 6px; min-width: 0;
+    font-size: 14px; font-weight: 600; color: var(--color-carbon); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .badge { flex-shrink: 0; padding: 1px 7px; border-radius: 99px; font-family: var(--font-mono); font-size: 10px; font-weight: 500; }
+  .badge-active  { background: #E6EEF7; color: var(--color-income); }
+  .badge-pending { background: #FBEDE3; color: #8A4B14; }
+  .user-meta { margin: 2px 0 0; display: flex; flex-wrap: wrap; gap: 2px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
+  .user-email { overflow-wrap: anywhere; }
+
+  .toggle, .status {
+    min-height: 36px; min-width: 84px; padding: 0 12px; border-radius: 10px; flex-shrink: 0;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .toggle { cursor: pointer; }
+  .toggle.is-pending { border: none; background: var(--color-navy); color: white; }
+  .toggle.is-active  { border: 1.5px solid #d6d4cc; background: white; color: var(--color-muted-strong); }
+  .toggle:disabled { opacity: 0.6; cursor: progress; }
+  .status-self { color: var(--color-muted); }
+</style>
+
+<script>
+  import { api, toast, confirmSheet } from '@/scripts/ui';
+
+  async function save(btn: HTMLButtonElement, activate: boolean) {
+    const { id, email } = btn.dataset;
+    btn.disabled = true;
+    const res = await api('/api/admin/users', 'PUT', { id, isActive: activate });
+    btn.disabled = false;
+
+    if (!res.ok) {
+      toast({ kind: 'error', title: 'No se pudo guardar', body: res.error });
+      return false;
+    }
+    btn.dataset.active = String(activate);
+    btn.classList.toggle('is-active', activate);
+    btn.classList.toggle('is-pending', !activate);
+    btn.textContent = activate ? 'Desactivar' : 'Activar';
+    const badge = btn.closest('.user-card')!.querySelector<HTMLElement>('[data-badge]')!;
+    badge.textContent = activate ? 'Activo' : 'Pendiente';
+    badge.className = `badge ${activate ? 'badge-active' : 'badge-pending'}`;
+    btn.setAttribute('aria-label', `${activate ? 'Desactivar' : 'Activar'} a ${email}`);
+    toast({ kind: 'success', title: activate ? 'Acceso activado' : 'Acceso desactivado', body: email });
+    return true;
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.active !== 'true') return save(btn, true);
+      // Desactivar corta el acceso: se confirma antes
+      return confirmSheet({
+        title:        '¿Desactivar usuario?',
+        body:         `${btn.dataset.email} no podrá entrar hasta que lo vuelvas a activar.`,
+        confirmLabel: 'Desactivar',
+        busyLabel:    'Desactivando…',
+        onConfirm:    () => save(btn, false),
+      });
+    });
+  });
+</script>

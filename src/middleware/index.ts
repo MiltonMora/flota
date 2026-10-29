@@ -4,8 +4,10 @@ import { json } from '@/lib/api';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { isAdmin } from '@/lib/admin';
 
 const PUBLIC_ROUTES = ['/login', '/api/auth'];
+const ADMIN_ROUTES  = ['/admin', '/api/admin'];
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const { pathname } = new URL(ctx.request.url);
@@ -47,6 +49,11 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
       res.headers.append('Set-Cookie', cookie);
     }
     return res;
+  }
+
+  // Administración: solo administradores (al resto se le responde como si no existiera)
+  if (ADMIN_ROUTES.some(r => pathname === r || pathname.startsWith(`${r}/`)) && !isAdmin(dbUser.email)) {
+    return isApi ? json({ error: 'No autorizado' }, 403) : new Response('No encontrado', { status: 404 });
   }
 
   // Inyectar en locals — disponible en todas las páginas y endpoints

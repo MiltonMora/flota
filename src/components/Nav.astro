@@ -1,4 +1,6 @@
 ---
+import { isAdmin } from '@/lib/admin';
+
 const currentPath = Astro.url.pathname;
 
 const navItems = [
@@ -7,6 +9,7 @@ const navItems = [
   { href: '/transactions/income',  label: 'Ingreso',  icon: 'income'  },
   { href: '/transactions/expense', label: 'Gasto',    icon: 'expense' },
   { href: '/reports',              label: 'Informes', icon: 'reports' },
+  ...(isAdmin(Astro.locals.user?.email) ? [{ href: '/admin/users', label: 'Usuarios', icon: 'users' }] : []),
 ];
 
 const isActive = (href: string) =>
@@ -41,6 +44,13 @@ const isActive = (href: string) =>
         {item.icon === 'reports' && (
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        )}
+        {item.icon === 'users' && (
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="9" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M16 4.8a3.5 3.5 0 010 6.4M18.5 14.8c1.6.8 2.6 2.5 3 5.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
         )}
         {item.icon === 'expense' && (
