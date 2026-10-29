@@ -1,10 +1,10 @@
 # Flota Vial
 
-Control de ingresos y gastos por vehículo. Astro 6 (SSR, adaptador Node), Drizzle ORM sobre SQLite/libSQL, Better Auth (Google) y Tailwind 4.
+Control de ingresos y gastos por vehículo. Astro 7 (SSR; Cloudflare Workers en producción, Node en local), Drizzle ORM sobre SQLite/libSQL, Better Auth (Google) y Tailwind 4.
 
 ## Requisitos
 
-- Node.js >= 22.12 (`nvm use 22`)
+- Node.js >= 22.23.4 (`nvm use 22`)
 
 ## Puesta en marcha (local)
 

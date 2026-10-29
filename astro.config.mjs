@@ -10,6 +10,8 @@ const isCloudflare = process.env.DEPLOY_TARGET === 'cloudflare';
 
 export default defineConfig({
   output: 'server',
+  // Astro 7 elimina por defecto los espacios entre elementos en línea ('jsx'); se mantiene el comportamiento anterior
+  compressHTML: true,
   // Variables leídas en tiempo de ejecución (no se incrustan en el build)
   env: {
     schema: {
