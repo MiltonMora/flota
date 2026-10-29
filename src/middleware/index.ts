@@ -1,15 +1,16 @@
-import { defineMiddleware } from 'astro:middleware';
+import { defineMiddleware, sequence } from 'astro:middleware';
 import { auth } from '@/lib/auth';
 import { json } from '@/lib/api';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { isAdmin } from '@/lib/admin';
+import { securityHeaders } from '@/middleware/security';
 
 const PUBLIC_ROUTES = ['/login', '/api/auth'];
 const ADMIN_ROUTES  = ['/admin', '/api/admin'];
 
-export const onRequest = defineMiddleware(async (ctx, next) => {
+const authGuard = defineMiddleware(async (ctx, next) => {
   const { pathname } = new URL(ctx.request.url);
 
   // Rutas públicas — pasan sin verificación
@@ -62,3 +63,5 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
 
   return next();
 });
+
+export const onRequest = sequence(securityHeaders, authGuard);

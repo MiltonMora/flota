@@ -8,9 +8,17 @@ export const json = (data: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
+/** Importe máximo de un movimiento (evita valores absurdos o Infinity) */
+export const MAX_AMOUNT = 1_000_000_000_000;
+
+/** Tamaño máximo del cuerpo JSON de las peticiones a la API */
+const MAX_BODY_BYTES = 64 * 1024;
+
 export const readJson = async (request: Request): Promise<unknown> => {
   try {
-    return await request.json();
+    const text = await request.text();
+    if (text.length > MAX_BODY_BYTES) return null;
+    return JSON.parse(text);
   } catch {
     return null;
   }

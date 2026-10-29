@@ -82,7 +82,10 @@ const shownMovements = report?.movements.slice(0, 50) ?? [];
 const exportHref = `/api/reports/export${filtersQuery(filters)}`;
 
 const granularityLabel = { day: 'por día', week: 'por semana', month: 'por mes' }[report?.granularity ?? 'day'];
-const chartData = report ? JSON.stringify({ series: report.series, granularity: report.granularity, type: filters.type }) : '{}';
+// Se escapa '<' para que ningún valor pueda cerrar el <script> que lo contiene
+const chartData = report
+  ? JSON.stringify({ series: report.series, granularity: report.granularity, type: filters.type }).replace(/</g, '\\u003c')
+  : '{}';
 const hasData = (report?.totals.count ?? 0) > 0;
 ---
 

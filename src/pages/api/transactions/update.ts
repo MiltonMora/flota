@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/db';
 import { transactions } from '@/db/schema';
-import { json, readJson, ownsVehicle } from '@/lib/api';
+import { json, readJson, ownsVehicle, MAX_AMOUNT } from '@/lib/api';
 import { parseISODay } from '@/lib/dates';
 import { isValidCategory, categoryLabel } from '@/lib/categories';
 import { eq } from 'drizzle-orm';
@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 const schema = z.object({
   id:          z.string().min(1),
-  amount:      z.coerce.number().positive(),
+  amount:      z.coerce.number().positive().max(MAX_AMOUNT),
   // Opcional: los formularios ya no la piden y se usa el nombre del concepto
   description: z.string().trim().max(200).optional(),
   vehicleId:   z.string().min(1),
