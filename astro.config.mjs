@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 const secret = (opts = {}) => envField.string({ context: 'server', access: 'secret', ...opts });
 
-// Destino del build: Node (local y Railway, por defecto) o Cloudflare Workers (DEPLOY_TARGET=cloudflare)
+// Destino del build: Node (desarrollo local, por defecto) o Cloudflare Workers (DEPLOY_TARGET=cloudflare)
 const isCloudflare = process.env.DEPLOY_TARGET === 'cloudflare';
 
 export default defineConfig({

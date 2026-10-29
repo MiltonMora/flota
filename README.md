@@ -47,7 +47,7 @@ En Google Cloud Console, la URI de redirección autorizada es
 
 ## Producción
 
-### Node (Railway)
+### Node (servidor propio)
 
 ```sh
 npm run build
