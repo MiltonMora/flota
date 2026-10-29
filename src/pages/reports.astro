@@ -30,6 +30,11 @@ const periodLabel = sameMonth && filters.from.getUTCDate() === 1
   ? monthName.charAt(0).toUpperCase() + monthName.slice(1)
   : `${formatDay(filters.from, { day: 'numeric', month: 'short' })} – ${formatDay(filters.to, { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
+/** Recorta a `max` caracteres (sin partir emojis) */
+const clip = (text: string, max = 100) => {
+  const chars = [...text.trim()];
+  return chars.length > max ? `${chars.slice(0, max).join('').trimEnd()}…` : chars.join('');
+};
 const pct = (v: number) => (v > 0 && v < 0.005 ? '<1%' : `${Math.round(v * 100)}%`);
 const signed = (v: number) => `${v >= 0 ? '+' : '−'}${currency(Math.abs(v))}`;
 
@@ -336,6 +341,7 @@ const hasData = (report?.totals.count ?? 0) > 0;
               <span class={`move-dot dot-${m.type}`} aria-hidden="true"></span>
               <div class="move-main">
                 <p class="move-desc">{m.description}</p>
+                {m.notes?.trim() && <p class="move-notes" title={m.notes}>{clip(m.notes)}</p>}
                 <p class="move-meta">
                   <span>{formatDay(m.date)}</span>
                   <span class="badge-plate">{m.plate}</span>
@@ -561,6 +567,7 @@ const hasData = (report?.totals.count ?? 0) > 0;
   .dot-expense { background: var(--chart-expense); }
   .move-main { flex: 1; min-width: 0; }
   .move-desc { margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .move-notes { margin: 2px 0 0; font-size: 12px; color: var(--color-muted-strong); overflow-wrap: anywhere; }
   .move-meta { margin: 3px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
   .move-amount { margin: 0; font-family: var(--font-mono); font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--color-carbon); }
   .moves-more { margin: 0; font-size: 12px; color: var(--color-muted-strong); }
